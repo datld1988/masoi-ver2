@@ -1,0 +1,955 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>🐺 Ma Sói – Quản Trò Online</title>
+<style>
+:root { --bg:#0f0a1e; --surface:#1a1230; --surface2:#251a40; --border:#3b2d5e;
+        --text:#ede9fe; --muted:#9d8fc7; --accent:#a855f7; --red:#f87171; --green:#4ade80; --gold:#fbbf24; }
+* { box-sizing:border-box; margin:0; padding:0; }
+body { background:var(--bg); color:var(--text); font-family:system-ui,-apple-system,sans-serif; }
+header { padding:10px 16px; background:var(--surface); border-bottom:1px solid var(--border);
+         display:flex; align-items:center; gap:10px; font-weight:700; flex-wrap:wrap; }
+header .rc { color:var(--gold); }
+main { padding:16px; max-width:900px; margin:0 auto; display:flex; flex-direction:column; gap:14px; }
+.card { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:16px; }
+.title { font-weight:700; margin-bottom:10px; }
+.row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+input,select { padding:9px 12px; border-radius:10px; border:1px solid var(--border);
+        background:var(--surface2); color:var(--text); font-size:.95rem; }
+.btn { padding:10px 16px; border:none; border-radius:10px; font-weight:700; cursor:pointer; font-size:.95rem; }
+.btn-primary { background:var(--accent); color:#fff; }
+.btn-ghost { background:var(--surface2); color:var(--text); border:1px solid var(--border); }
+.btn-danger { background:#dc2626; color:#fff; }
+.btn-gold { background:var(--gold); color:#111; }
+.btn-sm { padding:5px 10px; font-size:.8rem; }
+.btn:disabled { opacity:.4; cursor:default; }
+.muted { color:var(--muted); font-size:.85rem; }
+.hidden { display:none !important; }
+.grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(215px,1fr)); gap:8px; }
+.rrow { display:flex; align-items:center; gap:6px; background:var(--surface2); border:1px solid var(--border);
+        border-radius:10px; padding:6px 10px; font-size:.9rem; }
+.rrow .nm { flex:1; }
+.cbtn { width:26px; height:26px; border-radius:8px; border:1px solid var(--border); background:var(--surface);
+        color:var(--text); cursor:pointer; font-weight:700; }
+.ptable { width:100%; border-collapse:collapse; font-size:.9rem; }
+.ptable td,.ptable th { padding:6px 8px; border-bottom:1px solid var(--border); text-align:left; }
+.dead { opacity:.45; text-decoration:line-through; }
+.loglines { white-space:pre-line; line-height:1.7; }
+.secret { background:#1a0a2e; border:1px solid #6d28d9; border-radius:10px; padding:10px 12px; margin-top:10px; }
+.bigstep { text-align:center; padding:10px; }
+.bigstep .ic { font-size:3rem; }
+.timer { font-variant-numeric:tabular-nums; font-weight:800; color:var(--accent); font-size:1.4rem; }
+#qrBox { background:#fff; padding:10px; border-radius:12px; width:fit-content; margin:8px 0; }
+.tag { padding:2px 8px; border-radius:12px; font-size:.75rem; background:var(--surface2); border:1px solid var(--border); }
+.warn { color:var(--gold); }
+</style>
+</head>
+<body>
+<header>🐺 Ma Sói – Quản Trò Online
+  <span class="rc" id="hdRoom"></span>
+  <span class="tag" id="hdPhase"></span>
+  <span class="muted" id="hdConn" style="margin-left:auto"></span>
+</header>
+<main>
+
+<!-- ═══ SETUP ═══ -->
+<section class="card" id="pSetup">
+  <div class="title">🏠 Tạo phòng chơi online</div>
+  <div class="row">
+    <button class="btn btn-primary" onclick="createRoom()">➕ Tạo phòng mới</button>
+    <button class="btn btn-ghost hidden" id="btnResume" onclick="resumeRoom()">▶ Tiếp tục phòng <span id="resumeCode"></span></button>
+  </div>
+  <div class="muted" style="margin-top:10px">Link cho người chơi (deploy Firebase Hosting rồi giữ mặc định):</div>
+  <input id="inBase" style="width:100%;margin-top:6px">
+  <div class="muted" id="setupErr" style="color:var(--red);margin-top:6px"></div>
+</section>
+
+<!-- ═══ LOBBY ═══ -->
+<section class="card hidden" id="pLobby">
+  <div class="title">🚪 Phòng <span id="lbCode" style="color:var(--gold)"></span> – người chơi quét QR để vào</div>
+  <div id="qrBox"></div>
+  <div class="row">
+    <div class="muted" id="lbLink" style="word-break:break-all;flex:1"></div>
+    <button class="btn btn-ghost btn-sm" id="btnCopy" onclick="copyLink()">📋 Copy link</button>
+  </div>
+  <div class="title" style="margin-top:14px">⏳ Chờ duyệt <span class="muted" id="reqCount"></span></div>
+  <div class="row" id="reqList"></div>
+  <div class="title" style="margin-top:14px">👥 Đã vào (<span id="lbCount">0</span>)</div>
+  <div class="row" id="lbPlayers"></div>
+</section>
+
+<!-- ═══ ROLES ═══ -->
+<section class="card hidden" id="pRoles">
+  <div class="title">🃏 Chọn vai – <span id="roleTotal">0</span>/<span id="roleNeed">0</span>
+    <button class="btn btn-ghost btn-sm" onclick="suggestRoles()">✨ Gợi ý theo số người</button>
+  </div>
+  <div class="grid" id="roleGrid"></div>
+  <button class="btn btn-danger" id="btnStart" style="margin-top:12px" onclick="startGame()" disabled>🚀 Phát bài & Bắt đầu đêm 1</button>
+  <div class="muted" id="startHint" style="margin-top:6px;color:var(--gold)"></div>
+</section>
+
+<!-- ═══ NIGHT ═══ -->
+<section class="card hidden" id="pNight">
+  <div class="title" style="display:flex;align-items:center;gap:10px">🌙 Đêm <span id="nNo"></span> – bước <span id="nStepIdx"></span>/<span id="nStepTotal"></span>
+    <span style="margin-left:auto;font-weight:400" class="muted">⏱️ Mỗi lượt:
+      <select onchange="timeoutSec=+this.value" style="padding:4px 8px">
+        <option value="60">60s</option><option value="90">90s</option>
+        <option value="120" selected>120s</option><option value="180">180s</option>
+      </select></span>
+  </div>
+  <div class="bigstep">
+    <div class="ic" id="nIcon">🐺</div>
+    <div style="font-weight:800;font-size:1.15rem" id="nLabel"></div>
+    <div class="muted" id="nWho"></div>
+    <div class="timer" id="nTimer">--</div>
+  </div>
+  <div class="row" style="justify-content:center" id="nControls">
+  </div>
+  <div class="secret loglines" id="nLog"></div>
+</section>
+
+<!-- ═══ MORNING ═══ -->
+<section class="card hidden" id="pMorning">
+  <div class="title">🌅 Kết quả đêm <span id="mNo"></span> – đọc to phần công khai</div>
+  <div class="loglines" id="mPublic"></div>
+  <div class="secret loglines" id="mSecret"></div>
+  <button class="btn btn-primary" style="margin-top:12px" onclick="confirmMorning()">☀️ Công bố & sang ngày</button>
+</section>
+
+<!-- ═══ DAY ═══ -->
+<section class="card hidden" id="pDay">
+  <div class="title">☀️ Ngày <span id="dNo"></span> – thảo luận & bỏ phiếu</div>
+  <div class="row">
+    <button class="btn btn-primary" id="btnVoteOpen" onclick="openVote(true)">🗳️ Mở vote trên điện thoại</button>
+    <button class="btn btn-ghost hidden" id="btnVoteClose" onclick="openVote(false)">🔒 Đóng vote</button>
+    <button class="btn btn-danger" id="btnHang" onclick="hangTop()" disabled>🪢 Treo người nhiều phiếu nhất</button>
+    <button class="btn btn-ghost" onclick="noHang()">⏭️ Không treo ai → Đêm tiếp</button>
+  </div>
+  <div class="loglines" id="dTally" style="margin-top:10px"></div>
+</section>
+
+<!-- ═══ END ═══ -->
+<section class="card hidden" id="pEnd">
+  <div class="title" style="font-size:1.3rem" id="endTitle">🏁</div>
+  <div class="loglines" id="endDesc"></div>
+  <div class="row" style="margin-top:12px">
+    <button class="btn btn-gold" onclick="newMatch()">🔄 Ván mới cùng nhóm này</button>
+    <button class="btn btn-ghost" onclick="location.reload()">🚪 Phòng mới hoàn toàn</button>
+  </div>
+</section>
+
+<!-- ═══ GOD VIEW ═══ -->
+<section class="card hidden" id="pGod">
+  <div class="title">👁️ God-view – CHỈ MC XEM</div>
+  <table class="ptable" id="godTable"></table>
+</section>
+
+<!-- ═══ LỊCH SỬ ═══ -->
+<section class="card hidden" id="pHistory">
+  <div class="title">📜 Lịch sử ván đấu <span class="muted">– CHỈ MC XEM</span></div>
+  <div id="histList"></div>
+</section>
+
+<!-- ═══ CHAT (MC xem cả 3 kênh) ═══ -->
+<section class="card hidden" id="pChat">
+  <div class="title">💬 Chat <span class="muted">– MC thấy mọi kênh</span></div>
+  <div class="row" id="chatTabs" style="margin-bottom:8px"></div>
+  <div id="chatMsgs" style="height:200px;overflow-y:auto;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:8px 10px;font-size:.9rem;line-height:1.6"></div>
+  <div id="emoPal" class="hidden" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:8px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:8px"></div>
+  <div class="row" style="margin-top:8px">
+    <button class="btn btn-ghost" onclick="toggleEmo()" title="Biểu cảm">😀</button>
+    <input type="text" id="chatIn" placeholder="Nhắn với tư cách MC..." maxlength="300" style="flex:1">
+    <button class="btn btn-primary" onclick="sendChat()">➤ Gửi</button>
+  </div>
+</section>
+
+<!-- Modal chọn mục tiêu (Sói Thợ Săn kéo, Cô Bé...) -->
+<div id="modal" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;z-index:50">
+  <div class="card" style="max-width:420px;width:92%">
+    <div class="title" id="mdTitle"></div>
+    <div class="row" id="mdBody"></div>
+  </div>
+</div>
+</main>
+
+<script src="config.js"></script>
+<script src="engine.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+<script>
+'use strict';
+const E = MaSoiEngine;
+firebase.initializeApp(FIREBASE_CONFIG);
+const db = firebase.database();
+const $=id=>document.getElementById(id);
+const show=(id,on)=>$(id).classList.toggle('hidden',!on);
+
+let uid=null, room=null;
+let state=null, uidBySeat=[], steps=[], stepIdx=0, nd=null;
+let counts={}, pubPlayers={}, presence={}, joinReqs={};
+let hist=[]; // lịch sử đêm/ngày
+let wolfVotes={}; // phiếu chọn nạn nhân của từng Sói trong bước wolf
+let timeoutSec=120, stepTimerInt=null, stepDeadline=0;
+let processed=new Set(); // action keys đã xử lý
+
+const TIMEOUT_DEFAULT=60;
+$('inBase').value = localStorage.getItem('masoi_base') || (typeof PLAYER_BASE_URL!=='undefined'?PLAYER_BASE_URL:'');
+
+/* ═══ AUTH & RESUME ═══ */
+firebase.auth().signInAnonymously().catch(e=>$('setupErr').textContent='Lỗi Firebase: '+e.message+' (kiểm tra databaseURL trong config.js và đã bật Anonymous Auth chưa)');
+firebase.auth().onAuthStateChanged(u=>{
+  if(!u) return; uid=u.uid;
+  $('hdConn').textContent='✅ đã kết nối';
+  const saved=localStorage.getItem('masoi_host_room');
+  if(saved && localStorage.getItem('masoi_host_'+saved)){ show('btnResume',true); $('resumeCode').textContent=saved; }
+});
+
+/* ═══ ROOM ═══ */
+function genCode(){ const A='ABCDEFGHJKMNPQRSTUVWXYZ23456789'; let c=''; for(let i=0;i<5;i++) c+=A[Math.floor(Math.random()*A.length)]; return c; }
+
+function createRoom(){
+  room=genCode();
+  db.ref(`rooms/${room}/meta`).set({ hostUid:uid, phase:'lobby', nightNo:0, dayNo:0, createdAt:firebase.database.ServerValue.TIMESTAMP })
+    .then(()=>{ localStorage.setItem('masoi_host_room',room); enterLobby(); })
+    .catch(e=>$('setupErr').textContent='Không tạo được phòng: '+e.message);
+}
+
+function resumeRoom(){
+  room=localStorage.getItem('masoi_host_room');
+  const s=JSON.parse(localStorage.getItem('masoi_host_'+room)||'null');
+  if(!s){ $('setupErr').textContent='Không có dữ liệu phòng.'; return; }
+  state=s.state; uidBySeat=s.uidBySeat; nd=s.nd; counts=s.counts||{}; hist=s.hist||[];
+  renderHistory();
+  enterLobby();
+  if(state){ // game đang chạy
+    listenActions();
+    if(state.phase==='night'){ state.phase='night'; beginNight(); } // chạy lại đêm hiện tại từ đầu
+    else if(state.phase==='day') showDay();
+    else if(state.phase==='ended') showEnd({winner:state.winner,desc:''});
+    renderGod();
+  }
+}
+
+function saveLocal(){
+  if(!room) return;
+  localStorage.setItem('masoi_host_'+room, JSON.stringify({state,uidBySeat,nd,counts,hist}));
+}
+
+function enterLobby(){
+  show('pSetup',false); show('pLobby',true); show('pRoles',!state);
+  $('hdRoom').textContent='Phòng '+room; $('lbCode').textContent=room;
+  localStorage.setItem('masoi_base',$('inBase').value.trim());
+  const link=$('inBase').value.trim()+'?room='+room;
+  $('lbLink').textContent=link;
+  $('qrBox').innerHTML=''; new QRCode($('qrBox'),{text:link,width:170,height:170});
+  db.ref(`rooms/${room}/joinReq`).on('value',s=>{ joinReqs=s.val()||{}; renderLobby(); });
+  db.ref(`rooms/${room}/public/players`).on('value',s=>{ pubPlayers=s.val()||{}; renderLobby(); renderRoles(); renderGod(); ensureDmListeners(); });
+  db.ref(`rooms/${room}/presence`).on('value',s=>{ presence=s.val()||{}; renderLobby(); renderGod(); });
+  show('pChat',true); attachChat('main'); attachChat('wolf'); attachChat('dead');
+  $('chatIn').addEventListener('keydown',e=>{ if(e.key==='Enter') sendChat(); });
+  setPhaseTag();
+}
+
+/* ═══ CHAT (MC) ═══ */
+const CHANNELS={main:'💬 Chung',wolf:'🐺 Sói',dead:'👻 Âm phủ',dm:'📩 Nhắn riêng'};
+let chatCh='main', chatMsgs={main:[],wolf:[],dead:[]}, chatUnread={main:0,wolf:0,dead:0}, chatAttached={};
+let dmTarget=null, dmMsgs={}, dmUnread={}, dmAttached={};
+function attachChat(ch){
+  if(chatAttached[ch]) return; chatAttached[ch]=true;
+  db.ref(`rooms/${room}/chat/${ch}`).limitToLast(80).on('child_added',s=>{
+    const m=s.val(); if(!m) return;
+    chatMsgs[ch].push(m);
+    if(ch!==chatCh) chatUnread[ch]++;
+    renderChat();
+  });
+}
+function attachDm(pu){
+  if(dmAttached[pu]) return; dmAttached[pu]=true; dmMsgs[pu]=dmMsgs[pu]||[];
+  db.ref(`rooms/${room}/dm/${pu}`).limitToLast(80).on('child_added',s=>{
+    const m=s.val(); if(!m) return;
+    dmMsgs[pu].push(m);
+    if(m.from!=='mc' && !(chatCh==='dm' && dmTarget===pu)) dmUnread[pu]=(dmUnread[pu]||0)+1;
+    renderChat();
+  });
+}
+function ensureDmListeners(){ Object.keys(pubPlayers||{}).forEach(pu=>attachDm(pu)); }
+function setChatCh(ch){ chatCh=ch; if(ch!=='dm') chatUnread[ch]=0; renderChat(); }
+function setDmTarget(pu){ dmTarget=pu; dmUnread[pu]=0; renderChat(); }
+function renderChat(){
+  ensureDmListeners();
+  const totalDm=Object.values(dmUnread).reduce((a,b)=>a+(b||0),0);
+  $('chatTabs').innerHTML=Object.keys(CHANNELS).map(c=>{
+    const badge = c==='dm'?totalDm:chatUnread[c];
+    return `<button class="btn btn-ghost btn-sm" style="${c===chatCh?'border-color:var(--accent);color:var(--accent);':''}" onclick="setChatCh('${c}')">${CHANNELS[c]}${badge?` <b style="color:var(--red)">${badge}</b>`:''}</button>`;
+  }).join('');
+  if(chatCh==='dm'){ renderDm(); return; }
+  $('chatMsgs').innerHTML=chatMsgs[chatCh].map(m=>{
+    const mine=!!m.mc;
+    return `<div style="text-align:${mine?'right':'left'};margin:3px 0"><span style="display:inline-block;max-width:82%;text-align:left;background:${mine?'#3b1a6e':'var(--surface2)'};border:1px solid var(--border);border-radius:12px;padding:5px 10px"><b style="color:${m.mc?'var(--gold)':'var(--accent)'}">${esc(m.n)}:</b> ${esc(m.t)}</span></div>`;
+  }).join('')||'<span class="muted">Chưa có tin nhắn.</span>';
+  $('chatMsgs').scrollTop=$('chatMsgs').scrollHeight;
+  $('chatIn').placeholder='Nhắn với tư cách MC...';
+}
+function renderDm(){
+  const seats=Object.entries(pubPlayers).sort((a,b)=>(a[1].seat||0)-(b[1].seat||0));
+  if(dmTarget && !pubPlayers[dmTarget]) dmTarget=null;
+  const picker=seats.map(([u,p])=>{
+    const un=dmUnread[u]||0;
+    return `<button class="btn btn-ghost btn-sm" style="${u===dmTarget?'border-color:var(--accent);color:var(--accent);':''}" onclick="setDmTarget('${u}')">${esc(p.name)}${un?` <b style="color:var(--red)">${un}</b>`:''}</button>`;
+  }).join('')||'<span class="muted">Chưa có người chơi.</span>';
+  const thread = dmTarget
+    ? ((dmMsgs[dmTarget]||[]).map(m=>{
+        const isMc=m.from==='mc';
+        return `<div style="text-align:${isMc?'right':'left'};margin:3px 0"><span style="display:inline-block;max-width:82%;text-align:left;background:${isMc?'#3b1a6e':'var(--surface2)'};border:1px solid var(--border);border-radius:12px;padding:5px 10px"><b style="color:${isMc?'var(--gold)':'var(--accent)'}">${isMc?'MC':esc(m.n)}:</b> ${esc(m.t)}</span></div>`;
+      }).join('')||'<span class="muted">Chưa có tin nhắn với người này. Gõ bên dưới để nhắn riêng.</span>')
+    : '<span class="muted">← Chọn một người chơi để nhắn riêng.</span>';
+  $('chatMsgs').innerHTML=`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border)">${picker}</div>${thread}`;
+  $('chatMsgs').scrollTop=$('chatMsgs').scrollHeight;
+  $('chatIn').placeholder = dmTarget?`Nhắn riêng cho ${pubPlayers[dmTarget].name}...`:'Chọn người chơi ở trên trước...';
+}
+function sendChat(){
+  const t=$('chatIn').value.trim(); if(!t) return;
+  if(chatCh==='dm'){
+    if(!dmTarget){ alert('Chọn một người chơi để nhắn riêng.'); return; }
+    db.ref(`rooms/${room}/dm/${dmTarget}`).push({ from:'mc', n:'MC', t:t.slice(0,300), ts:firebase.database.ServerValue.TIMESTAMP })
+      .then(()=>$('chatIn').value='').catch(e=>alert('Không gửi được: '+e.message));
+    return;
+  }
+  db.ref(`rooms/${room}/chat/${chatCh}`).push({ n:'📢 MC', t:t.slice(0,300), mc:true, ts:firebase.database.ServerValue.TIMESTAMP })
+    .then(()=>$('chatIn').value='').catch(e=>alert('Không gửi được: '+e.message));
+}
+
+/* ── Bộ chọn biểu cảm ── */
+const EMOJIS=['😀','😂','😅','😉','😎','😍','🤔','😱','😭','😡','😴','🤫','👍','👎','🙏','👏','🔥','💀','🐺','🌙','☀️','❤️','💘','⚰️','🗳️','✅','❌','🤝','😈','🥳'];
+function toggleEmo(){
+  const pal=$('emoPal');
+  if(pal.classList.contains('hidden')){
+    if(!pal.dataset.built){ pal.innerHTML=EMOJIS.map(e=>`<button type="button" style="background:none;border:none;font-size:1.5rem;cursor:pointer;padding:2px;line-height:1" onclick="insEmo('${e}')">${e}</button>`).join(''); pal.dataset.built='1'; }
+    pal.classList.remove('hidden');
+  } else pal.classList.add('hidden');
+}
+function insEmo(e){ const inp=$('chatIn'); inp.value=(inp.value+e).slice(0,300); inp.focus(); }
+
+function setPhaseTag(){ $('hdPhase').textContent = state ? {night:'🌙 Đêm '+state.night, day:'☀️ Ngày '+state.day, ended:'🏁 Kết thúc'}[state.phase]||'' : '🚪 Lobby'; }
+
+function renderLobby(){
+  // ẩn những người đã được duyệt (phòng khi xóa joinReq thất bại)
+  const reqs=Object.entries(joinReqs).filter(([u])=>!pubPlayers[u]);
+  $('reqCount').textContent=reqs.length?`(${reqs.length})`:'';
+  $('reqList').innerHTML=reqs.map(([u,r])=>
+    `<span class="rrow">${esc(r.name)}
+       <button class="cbtn" style="color:var(--green)" onclick="approve('${u}')">✔</button>
+       <button class="cbtn" style="color:var(--red)" onclick="reject('${u}')">✖</button></span>`).join('')||'<span class="muted">Chưa có ai chờ.</span>';
+  const ps=seatSorted();
+  $('lbCount').textContent=ps.length;
+  $('lbPlayers').innerHTML=ps.map(([u,p])=>
+    `<span class="rrow">${presence[u]?'🟢':'🔴'} ${esc(p.name)}${!state?` <button class="cbtn" style="color:var(--red)" title="Mời ra khỏi phòng" onclick="kick('${u}')">✖</button>`:''}</span>`).join('')||'<span class="muted">Chưa có ai.</span>';
+}
+
+function copyLink(){
+  const t=$('lbLink').textContent;
+  (navigator.clipboard? navigator.clipboard.writeText(t) : Promise.reject()).then(
+    ()=>{ $('btnCopy').textContent='✅ Đã copy'; setTimeout(()=>$('btnCopy').textContent='📋 Copy link',1500); },
+    ()=>prompt('Copy thủ công:', t));
+}
+
+function kick(u){
+  if(state) return; // chỉ trước khi phát bài
+  db.ref(`rooms/${room}/public/players/${u}`).remove().then(()=>{
+    const rest=seatSorted().filter(([x])=>x!==u);
+    const upd={}; rest.forEach(([x],i)=>{ upd[`public/players/${x}/seat`]=i; });
+    db.ref(`rooms/${room}`).update(upd);
+  });
+}
+function seatSorted(){ return Object.entries(pubPlayers).sort((a,b)=>(a[1].seat||0)-(b[1].seat||0)); }
+function esc(s){ return String(s||'').replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c])); }
+
+function approve(u){
+  const seat=Object.keys(pubPlayers).length;
+  db.ref(`rooms/${room}/public/players/${u}`).set({ name:joinReqs[u].name, seat, alive:true })
+    .catch(e=>alert('Lỗi duyệt: '+e.message));
+  db.ref(`rooms/${room}/joinReq/${u}`).remove().catch(()=>{});
+}
+function reject(u){ db.ref(`rooms/${room}/joinReq/${u}`).remove(); }
+
+/* ═══ ROLES ═══ */
+function renderRoles(){
+  if(state) return;
+  const n=Object.keys(pubPlayers).length;
+  $('roleNeed').textContent=n;
+  $('roleGrid').innerHTML=E.ROLES.map(r=>`
+    <div class="rrow"><span>${r.icon}</span><span class="nm">${r.name}</span>
+      <button class="cbtn" onclick="chCount('${r.id}',-1)">−</button>
+      <b>${counts[r.id]||0}</b>
+      <button class="cbtn" onclick="chCount('${r.id}',1)">+</button></div>`).join('');
+  const total=Object.values(counts).reduce((a,b)=>a+b,0);
+  $('roleTotal').textContent=total;
+  const reason = n<3 ? `Cần tối thiểu 3 người (đang có ${n}).`
+               : total!==n ? `Tổng vai (${total}) phải bằng số người chơi (${n}).` : '';
+  $('btnStart').disabled = !!reason;
+  $('startHint').textContent = reason;
+}
+function chCount(id,d){ counts[id]=Math.max(0,(counts[id]||0)+d); renderRoles(); }
+function suggestRoles(){
+  const n=Object.keys(pubPlayers).length;
+  counts={}; if(n<4) { renderRoles(); return; }
+  counts.wolf=Math.max(1,Math.floor(n/4));
+  counts.seer=1;
+  if(n>=6) counts.witch=1;
+  if(n>=7) counts.bodyguard=1;
+  if(n>=9) counts.hunter=1;
+  if(n>=11) counts.cupid=1;
+  const used=Object.values(counts).reduce((a,b)=>a+b,0);
+  counts.villager=n-used;
+  renderRoles();
+}
+
+/* ═══ START ═══ */
+function startGame(){
+  const ps=seatSorted();
+  uidBySeat=ps.map(([u])=>u);
+  const names=ps.map(([,p])=>p.name);
+  try { state=E.createGame(names,counts); }
+  catch(e){ alert(e.message); return; }
+  const deal=E.dealInfo(state);
+  const upd={};
+  uidBySeat.forEach((u,i)=>{
+    upd[`private/${u}`]={ role:deal[i].role, mates:deal[i].mates? deal[i].mates.map(m=>({name:m.name})) : null };
+    upd[`wolves/${u}`]= E.BITING_WOLF_IDS.includes(state.players[i].roleId) ? true : null; // kênh chat Sói (minion KHÔNG vào – Sói không biết minion)
+  });
+  upd['meta/phase']='night'; upd['meta/nightNo']=1; upd['meta/dayNo']=1;
+  upd['public/announce']='🌙 Đêm đầu tiên bắt đầu! Mọi người xem vai trên điện thoại của mình (giữ để lật).';
+  db.ref(`rooms/${room}`).update(upd);
+  show('pRoles',false); show('pLobby',false); show('pGod',true);
+  listenActions();
+  beginNight();
+}
+
+/* ═══ NIGHT FLOW ═══ */
+const uidOf=i=>uidBySeat[i];
+const idxOf=u=>uidBySeat.indexOf(u);
+const aliveList=()=>state.players.map((p,i)=>({p,i})).filter(x=>x.p.alive);
+const tRef=(list)=>list.map(({p,i})=>({uid:uidOf(i),name:p.name}));
+
+/* ĐÊM SONG SONG: Đợt 1 = mọi vai cùng hành động song song, gồm cả Phù Thủy
+   (Phù Thủy cứu "mù" – KHÔNG biết Sói cắn ai, tránh lộ bài);
+   Đợt 2 = chỉ còn Cô Bé Ti Hí (MC quyết định bị phát hiện hay không). */
+let wavePending=[], wave=1, lgPendingFlag=false;
+const STEP_LABEL={wolf:'🐺 Ma Sói',whitewolf:'🤍 Sói Trắng',seer:'🔮 Tiên Tri',bodyguard:'🛡️ Bảo Vệ',doctor:'💉 Bác Sĩ',cupid:'💘 Cupid',hunter:'🏹 Thợ Săn',serialkiller:'🔪 Sát Nhân',witch:'🧙 Phù Thủy',littlegirl:'👧 Cô Bé Ti Hí'};
+
+function beginNight(){
+  nd=E.newNightData(); wolfVotes={}; processed=new Set();
+  const types=E.buildNightSteps(state).map(s=>s.type);
+  // Phù Thủy cũng chạy song song đợt 1 (cứu "mù" – không biết Sói cắn ai)
+  wavePending=types.filter(t=>t!=='littlegirl');
+  lgPendingFlag=types.includes('littlegirl');
+  db.ref(`rooms/${room}/meta`).update({phase:'night',nightNo:state.night});
+  setPhaseTag(); saveLocal();
+  startWave1();
+}
+
+function actorIdxs(type){
+  if(type==='wolf') return aliveList().filter(x=>E.BITING_WOLF_IDS.includes(x.p.roleId)).map(x=>x.i);
+  return aliveList().filter(x=>x.p.roleId===type).map(x=>x.i);
+}
+
+function buildPrompt(type){
+  const f=state.flags;
+  const others=me=>tRef(aliveList().filter(x=>x.i!==me));
+  switch(type){
+    case 'cupid': return {mode:'pick',max:2,title:'💘 Cupid ghép đôi',desc:'Chọn đúng 2 người. Một người chết, người kia chết theo.',targets:tRef(aliveList()),canSkip:true};
+    case 'wolf': return {mode:'pick',max:1+(f.wolfCubBonusKill?1:0),title:'🐺 Bầy Sói chọn nạn nhân',desc:(f.wolfCubBonusKill?'Sói Con đã chết → được cắn 2 người! ':'')+'Mỗi Sói tự bỏ phiếu – mục tiêu nhiều phiếu nhất sẽ bị cắn. Bàn nhau trong kênh chat 🐺.',targets:tRef(aliveList().filter(x=>!E.WOLF_IDS.includes(x.p.roleId))),canSkip:true};
+    case 'whitewolf': { const me=actorIdxs('whitewolf')[0]; return {mode:'pick',max:1,title:'🤍 Sói Trắng phản bội',desc:'Cắn 1 Sói khác (bí mật với cả bầy).',targets:tRef(aliveList().filter(x=>E.WOLF_IDS.includes(x.p.roleId)&&x.i!==me)),canSkip:true}; }
+    case 'seer': { const me=actorIdxs('seer')[0]; return {mode:'pick',max:1,title:'🔮 Tiên Tri soi',desc:'Chọn 1 người để biết có phải Sói không.',targets:others(me),canSkip:true}; }
+    case 'bodyguard': return {mode:'pick',max:1,title:'🛡️ Bảo Vệ chắn',desc:'Không được chọn người đã bảo vệ đêm trước.',targets:tRef(aliveList().filter(x=>x.i!==f.bodyguardLastIdx)),canSkip:true};
+    case 'doctor': return {mode:'pick',max:1,title:'💉 Bác Sĩ cứu chữa',desc:'Chọn 1 người để cứu đêm nay.',targets:tRef(aliveList()),canSkip:true};
+    case 'witch': return {mode:'witch',title:'🧙 Phù Thủy',desc:'Bạn KHÔNG biết Sói cắn ai. Bình cứu che chở 1 người bất kỳ đêm nay (kể cả chính bạn); bình độc giết 1 người. Mỗi bình 1 lần cả ván.',canHeal:!f.witchHealUsed,canPoison:!f.witchPoisonUsed,targets:tRef(aliveList()),canSkip:true};
+    case 'hunter': { const me=actorIdxs('hunter')[0]; return {mode:'pick',max:1,title:'🏹 Thợ Săn – PHÁT ĐẠN DUY NHẤT',desc:'⚠️ Cả ván chỉ được bắn 1 lần! Người bị bắn chết sáng mai. Cân nhắc kỹ hoặc Bỏ qua để giữ đạn.',targets:others(me),canSkip:true}; }
+    case 'serialkiller': { const me=actorIdxs('serialkiller')[0]; return {mode:'pick',max:1,title:'🔪 Sát Nhân ra tay',desc:'Giết 1 người.',targets:others(me),canSkip:true}; }
+  }
+  return null;
+}
+
+function runNightUI(){ show('pNight',true); show('pMorning',false); show('pDay',false); show('pGod',true); $('nNo').textContent=state.night; }
+
+function startWave1(){
+  runNightUI(); wave=1;
+  wavePending=wavePending.filter(t=>actorIdxs(t).length>0);
+  const deadline=Date.now()+timeoutSec*1000;
+  const upd={};
+  uidBySeat.forEach(u=>{ upd[`private/${u}/prompt`]=null; });
+  for(const t of wavePending){
+    const pr=buildPrompt(t); pr.stepType=t; pr.deadline=deadline;
+    actorIdxs(t).forEach(i=>{ upd[`private/${uidOf(i)}/prompt`]=pr; });
+  }
+  db.ref(`rooms/${room}`).update(upd);
+  if(wavePending.length===0){ startWave2(); return; }
+  startTimer(deadline);
+  renderNightPanel(); saveLocal();
+}
+
+function markTypeDone(t){
+  wavePending=wavePending.filter(x=>x!==t);
+  const upd={}; actorIdxs(t).forEach(i=>{ upd[`private/${uidOf(i)}/prompt`]=null; });
+  db.ref(`rooms/${room}`).update(upd);
+  renderNightPanel(); saveLocal();
+  if(wave===1 && wavePending.length===0){ stopTimer(); startWave2(); }
+}
+
+function skipType(t){
+  if(t==='wolf'){ nd.stepLog.push('🐺 MC quyết định: không cắn ai'); wolfVotes={}; }
+  else nd.stepLog.push(`⏭️ MC bỏ qua: ${STEP_LABEL[t]||t}`);
+  markTypeDone(t);
+}
+
+function renderNightPanel(){
+  if(!state||state.phase!=='night') return;
+  $('nStepIdx').textContent=wave; $('nStepTotal').textContent='2';
+  $('nIcon').textContent = wave===1?'🌙':'🧪';
+  $('nLabel').textContent = wave===1?'':'Cô Bé Ti Hí';
+  $('nLog').textContent=nd.stepLog.join('\n')||'(chưa có hành động)';
+  if(wave!==1) return;
+  const chips=wavePending.map(t=>{
+    if(t==='wolf'){
+      const actors=actorIdxs('wolf'), done=actors.filter(a=>wolfVotes[a]);
+      const miss=actors.filter(a=>!wolfVotes[a]).map(a=>state.players[a].name);
+      const {targets,tie,tally}=computeWolfPick();
+      const lines=Object.entries(tally).sort((a,b)=>b[1]-a[1]).map(([x,c])=>`${state.players[+x].name}:${c}`).join(' · ')||'chưa có phiếu';
+      const names=targets.map(x=>state.players[x].name).join(', ');
+      return `<div style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:8px 12px;margin-bottom:6px">
+        <b>🐺 Ma Sói</b> <span class="muted">phiếu ${done.length}/${actors.length}: ${esc(lines)}</span>
+        ${miss.length?`<div class="warn" style="font-size:.82rem">⏳ Chưa bỏ phiếu: ${esc(miss.join(', '))}</div>`:'<div class="muted" style="font-size:.82rem;color:var(--green)">✔️ Cả bầy đã bỏ phiếu</div>'}
+        ${tie?'<span class="warn"> ⚠️ HÒA – theo luật không cắn ai</span>':''}
+        <div class="row" style="margin-top:6px">
+          <button class="btn btn-danger btn-sm" ${targets.length?'':'disabled'} onclick="mcFinalizeWolf()">🐺 Chốt cắn${names?' '+esc(names):''}</button>
+          <button class="btn btn-ghost btn-sm" onclick="skipType('wolf')">Không cắn</button>
+        </div></div>`;
+    }
+    const who=actorIdxs(t).map(i=>state.players[i].name).join(', ');
+    return `<div style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:8px 12px;margin-bottom:6px">
+      ⏳ <b>${STEP_LABEL[t]||t}</b> <span class="muted">(${esc(who)})</span>
+      <button class="btn btn-ghost btn-sm" style="float:right" onclick="skipType('${t}')">Bỏ qua</button></div>`;
+  }).join('');
+  const pendLabels=wavePending.map(t=>{
+    if(t==='wolf'){ const a=actorIdxs('wolf'), miss=a.filter(x=>!wolfVotes[x]).length; return `🐺 Ma Sói${miss?` (còn ${miss})`:' (đủ phiếu)'}`; }
+    return STEP_LABEL[t]||t;
+  });
+  $('nWho').innerHTML = wavePending.length
+    ? `⏳ <b>CHƯA hành động xong (${wavePending.length}):</b> ${esc(pendLabels.join('  •  '))}`
+    : '✔️ Mọi vai đã hành động xong đêm nay.';
+  $('nControls').innerHTML=chips||'<span class="muted">Xong đợt 1...</span>';
+}
+
+function startWave2(){
+  wave=2; runNightUI(); renderNightPanel();
+  if(lgPendingFlag && actorIdxs('littlegirl').length){
+    $('nWho').textContent='MC quyết định: Sói có phát hiện Cô Bé Ti Hí không?';
+    $('nControls').innerHTML=`
+      <button class="btn btn-ghost" onclick="lgDecide(false)">👌 An toàn</button>
+      <button class="btn btn-danger" onclick="lgDecide(true)">😱 Bị phát hiện!</button>`;
+    stopTimer();
+    return;
+  }
+  morning();
+}
+function lgDecide(caught){
+  E.applyNightAction(state,nd,'littlegirl',{caught});
+  lgPendingFlag=false;
+  morning();
+}
+
+function startTimer(deadline){
+  stopTimer(); stepDeadline=deadline;
+  stepTimerInt=setInterval(()=>{
+    const s=Math.max(0,Math.ceil((stepDeadline-Date.now())/1000));
+    $('nTimer').textContent=s+'s';
+    if(s<=0){ stopTimer(); onWaveTimeout(); }
+  },400);
+}
+function stopTimer(){ clearInterval(stepTimerInt); stepTimerInt=null; $('nTimer').textContent='--'; }
+
+function onWaveTimeout(){
+  if(!state||state.phase!=='night') return;
+  if(wave===1){
+    for(const t of [...wavePending]){
+      if(t==='wolf'){
+        const {targets,tie}=computeWolfPick();
+        if(targets.length&&!tie){ nd.stepLog.push('⏰ Hết giờ – Sói chốt theo phiếu cao nhất'); applyWolfPickCore(targets); }
+        else nd.stepLog.push('⏰ Hết giờ – Sói hòa/không phiếu, không cắn ai');
+        wolfVotes={};
+      } else nd.stepLog.push(`⏰ Hết giờ – bỏ qua: ${STEP_LABEL[t]||t}`);
+    }
+    wavePending=[];
+    clearPrompts(); startWave2();
+  }
+}
+
+function clearPrompts(){
+  const upd={};
+  uidBySeat.forEach(u=>{ upd[`private/${u}/prompt`]=null; });
+  db.ref(`rooms/${room}`).update(upd);
+}
+
+/* ═══ ACTIONS từ người chơi ═══ */
+let actionsRefAttached=null;
+function listenActions(){
+  if(actionsRefAttached) return;
+  actionsRefAttached=db.ref(`rooms/${room}/actions`);
+  actionsRefAttached.on('child_added',nightSnap=>{
+    nightSnap.ref.on('child_added',s=>handleAction(s.key,s.val()));
+    nightSnap.ref.on('child_changed',s=>handleAction(s.key,s.val()));
+  });
+}
+function handleAction(fromUid, action){
+  if(!state||!action||!action.stepType) return;
+  const t=action.stepType;
+  // Sói Thợ Săn kéo người sau khi bị treo (ban ngày, người đã chết)
+  if(t==='hwrevenge'){ handleRevengeAction(fromUid,action); return; }
+  if(state.phase!=='night') return;
+  const i=idxOf(fromUid);
+  if(!actorIdxs(t).includes(i)) return;
+
+  if(t==='wolf'){ if(wave!==1||!wavePending.includes('wolf')) return; handleWolfVote(i,fromUid,action); return; }
+
+  if(t==='witch'){
+    if(wave!==1||!wavePending.includes('witch')) return;
+    if(action.skip){ nd.stepLog.push('⏭️ 🧙 Phù Thủy: bỏ qua lượt'); markTypeDone('witch'); return; }
+    const payload={ heal: action.heal!=null?idxOf(action.heal):null, poison: action.poison!=null?idxOf(action.poison):null };
+    const res=E.applyNightAction(state,nd,'witch',payload);
+    if(!res.ok){ const p=buildPrompt('witch'); p.stepType='witch'; p.deadline=stepDeadline; p.error='⚠️ '+res.error; db.ref(`rooms/${room}/private/${fromUid}/prompt`).set(p); return; }
+    markTypeDone('witch'); return;
+  }
+
+  if(wave!==1||!wavePending.includes(t)) return;
+  if(action.skip){ nd.stepLog.push(`⏭️ ${STEP_LABEL[t]||t}: bỏ qua lượt`); markTypeDone(t); return; }
+  const payload={ targets:(action.targets||[]).map(u=>idxOf(u)) };
+  const res=E.applyNightAction(state,nd,t,payload);
+  if(!res.ok){
+    const p=buildPrompt(t); p.stepType=t; p.deadline=stepDeadline; p.error='⚠️ '+res.error;
+    db.ref(`rooms/${room}/private/${fromUid}/prompt`).set(p);
+    return;
+  }
+  if(t==='seer' && res.private)
+    db.ref(`rooms/${room}/private/${fromUid}/result`).set(`🔮 Đêm ${state.night}: ${res.private.name} ${res.private.seen==='wolf'?'LÀ MA SÓI 🔴':'KHÔNG phải Sói 🔵'}`);
+  if(t==='cupid' && state.cupidPair.length===2){
+    const [a,b]=state.cupidPair;
+    db.ref(`rooms/${room}/private/${uidOf(a)}/lover`).set(state.players[b].name);
+    db.ref(`rooms/${room}/private/${uidOf(b)}/lover`).set(state.players[a].name);
+    db.ref(`rooms/${room}/private/${uidOf(a)}/result`).set(`💘 Cupid đã ghép đôi bạn với ${state.players[b].name} – một người chết, người kia chết theo!`);
+    db.ref(`rooms/${room}/private/${uidOf(b)}/result`).set(`💘 Cupid đã ghép đôi bạn với ${state.players[a].name} – một người chết, người kia chết theo!`);
+  }
+  markTypeDone(t);
+}
+
+function handleWolfVote(i, fromUid, action){
+  const maxK=1+(state.flags.wolfCubBonusKill?1:0);
+  if(action.skip){
+    wolfVotes[i]={targets:[]};
+  } else {
+    const tg=(action.targets||[]).map(u=>idxOf(u)).filter(x=>x>=0);
+    const bad=tg.some(x=>!state.players[x].alive||E.WOLF_IDS.includes(state.players[x].roleId));
+    if(tg.length<1||tg.length>maxK||bad){
+      const p=buildPrompt('wolf'); p.stepType='wolf'; p.deadline=stepDeadline; p.error='⚠️ Mục tiêu không hợp lệ';
+      db.ref(`rooms/${room}/private/${fromUid}/prompt`).set(p);
+      return;
+    }
+    wolfVotes[i]={targets:tg};
+  }
+  const actors=actorIdxs('wolf');
+  const done=actors.filter(a=>wolfVotes[a]);
+  const status=done.map(a=>`${state.players[a].name}→${wolfVotes[a].targets.length?wolfVotes[a].targets.map(x=>state.players[x].name).join('+'):'bỏ qua'}`).join(' · ');
+  actors.forEach(a=>db.ref(`rooms/${room}/private/${uidOf(a)}/result`).set(`🐺 Phiếu bầy sói (${done.length}/${actors.length}): ${status}`));
+  renderNightPanel();
+}
+
+// Gom phiếu → mục tiêu; hòa phiếu ở ranh giới = không cắn
+function computeWolfPick(){
+  const maxK=1+(state.flags.wolfCubBonusKill?1:0);
+  const tally={};
+  Object.values(wolfVotes).forEach(v=>v.targets.forEach(t=>{ tally[t]=(tally[t]||0)+1; }));
+  const ranks=Object.entries(tally).map(([t,c])=>[+t,c]).sort((a,b)=>b[1]-a[1]);
+  if(!ranks.length) return {targets:[], tie:false, tally};
+  const tie = ranks.length>maxK && ranks[maxK][1]===ranks[maxK-1][1];
+  return {targets: tie?[]:ranks.slice(0,maxK).map(r=>r[0]), tie, tally};
+}
+
+function mcFinalizeWolf(){
+  const {targets,tie}=computeWolfPick();
+  if(tie||!targets.length){ skipType('wolf'); return; }
+  applyWolfPickCore(targets);
+  wolfVotes={};
+  markTypeDone('wolf');
+}
+
+function applyWolfPickCore(top){
+  const actors=actorIdxs('wolf');
+  const res=E.applyNightAction(state,nd,'wolf',{targets:top});
+  if(!res.ok){ nd.stepLog.push('🐺 Lỗi chốt mục tiêu: '+res.error+' – bỏ qua'); return; }
+  const names=top.map(x=>state.players[x].name).join(', ');
+  actors.forEach(a=>db.ref(`rooms/${room}/private/${uidOf(a)}/result`).set(`🐺 Đêm ${state.night}: bầy sói CHỐT cắn ${names}`));
+}
+
+/* ═══ MORNING ═══ */
+let morningResult=null;
+function morning(){
+  stopTimer(); clearPrompts();
+  morningResult=E.resolveMorning(state,nd);
+  hist.unshift({ type:'night', night:state.night, events:[...nd.stepLog],
+    deaths: morningResult.deaths.map(i=>{ const r=E.roleOf(state.players[i].roleId); return {name:state.players[i].name, role:r.name, icon:r.icon}; }) });
+  renderHistory();
+  show('pNight',false); show('pMorning',true);
+  $('mNo').textContent=state.night;
+  $('mPublic').textContent=morningResult.publicLines.join('\n')||'Không có gì xảy ra.';
+  $('mSecret').textContent='🔒 CHỈ MC:\n'+(morningResult.secretLines.join('\n')||'(không có)');
+  renderGod(); saveLocal();
+}
+function confirmMorning(){
+  const upd={};
+  // Đồng bộ role có thể đã đổi trong đêm (Kẻ Nguyền Rủa → Sói, Tập Sự → Tiên Tri)
+  const deal=E.dealInfo(state);
+  state.players.forEach((p,i)=>{
+    const u=uidOf(i);
+    upd[`public/players/${u}/alive`]=p.alive;
+    upd[`private/${u}/role`]=deal[i].role;
+    upd[`private/${u}/mates`]=deal[i].mates? deal[i].mates.map(m=>({name:m.name})) : null;
+    upd[`wolves/${u}`]= E.BITING_WOLF_IDS.includes(p.roleId) ? true : null;
+  });
+  // Công khai CHỈ tên người chết – chi tiết (role, ai cứu ai) chỉ MC biết và tự công bố miệng
+  const deadNames=morningResult.deaths.map(i=>state.players[i].name);
+  upd['public/announce']= deadNames.length
+    ? `🌅 Sáng (sau đêm ${state.night}): 💀 ${deadNames.join(', ')} đã chết. Nghe MC công bố chi tiết!`
+    : `🌅 Sáng (sau đêm ${state.night}): đêm qua bình yên – không ai chết! 🕊️`;
+  upd['meta/phase']= morningResult.win ? 'ended' : 'day';
+  upd['meta/dayNo']=state.day;
+  // dọn kết quả riêng đêm cũ
+  uidBySeat.forEach(u=>{ upd[`private/${u}/result`]=null; });
+  db.ref(`rooms/${room}`).update(upd);
+  if(morningResult.win){ showEnd(morningResult.win); return; }
+  showDay();
+}
+
+/* ═══ DAY & VOTE ═══ */
+let votesRaw={}, votesRefAttached=null;
+function showDay(){
+  state.phase='day'; setPhaseTag(); saveLocal();
+  show('pMorning',false); show('pNight',false); show('pDay',true); show('pGod',true);
+  $('dNo').textContent=state.day;
+  if(!votesRefAttached){
+    votesRefAttached=db.ref(`rooms/${room}/votes`);
+    votesRefAttached.on('value',s=>{ votesRaw=s.val()||{}; renderTally(); });
+  }
+  renderTally();
+}
+function openVote(on){
+  db.ref(`rooms/${room}/public/vote`).set({open:on});
+  show('btnVoteOpen',!on); show('btnVoteClose',on);
+}
+function currentVotes(){
+  const v=(votesRaw&&votesRaw[state.day])||{};
+  const map={};
+  Object.entries(v).forEach(([vu,tu])=>{ const vi=idxOf(vu), ti=idxOf(tu); if(vi>=0&&ti>=0) map[vi]=ti; });
+  return map;
+}
+function renderTally(){
+  if(!state||state.phase!=='day') return;
+  const t=E.tallyVotes(state,currentVotes());
+  const lines=Object.entries(t.tally).sort((a,b)=>b[1]-a[1])
+    .map(([i,c])=>`${state.players[+i].name}: ${c} phiếu`);
+  $('dTally').textContent=lines.length?lines.join('\n')+(t.tie?'\n⚠️ HÒA – cần vote lại!':''):'Chưa có phiếu nào.';
+  $('btnHang').disabled = t.top===null;
+}
+function hangTop(){
+  const t=E.tallyVotes(state,currentVotes());
+  if(t.top===null) return;
+  doHang(t.top);
+}
+function doHang(idx){
+  const t=E.tallyVotes(state,currentVotes());
+  const vlines=Object.entries(t.tally).sort((a,b)=>b[1]-a[1]).map(([i,c])=>`${state.players[+i].name}: ${c} phiếu`);
+  const p0=state.players[idx];
+  const r=E.resolveHang(state,idx);
+  { const rr=E.roleOf(p0.roleId);
+    hist.unshift({ type:'day', day:state.day, executed: r.blocked?null:p0.name,
+      target:p0.name, role:rr.name, icon:rr.icon, blocked:r.blocked, lines:[...r.lines], votes:vlines });
+    renderHistory(); }
+  // Công khai không kèm role (trừ cơ chế tự lộ: Hoàng Tử/Kẻ Ngốc/Kẻ Điên)
+  let pub;
+  if(r.blocked) pub=r.lines.join('\n');
+  else if(r.win && r.win.reason==='joker') pub=`🤡 ${p0.name} là KẺ ĐIÊN – bị treo đúng ý muốn → Kẻ Điên THẮNG!`;
+  else pub=`🪢 ${p0.name} đã bị dân làng treo cổ.`;
+  const upd={};
+  state.players.forEach((p,i)=>{ upd[`public/players/${uidOf(i)}/alive`]=p.alive; });
+  upd['public/announce']=pub;
+  upd['public/vote']={open:false};
+  db.ref(`rooms/${room}`).update(upd);
+  show('btnVoteOpen',true); show('btnVoteClose',false);
+  renderGod(); saveLocal();
+  if(r.events.includes('hunterwolfRevenge')){
+    promptRevenge(idx, pub, r);
+    return;
+  }
+  if(r.win){ showEnd(r.win); return; }
+  afterHang(r);
+}
+
+/* ═══ SÓI THỢ SĂN KÉO NGƯỜI – chính người chơi chọn trên máy họ ═══ */
+let revengePending=null, revengeTimer=null, revengeCtx=null;
+function promptRevenge(hangedIdx, pub, hangRes){
+  revengePending=hangedIdx; revengeCtx={pub, hangRes};
+  const pr={ stepType:'hwrevenge', mode:'pick', max:1, canSkip:true, anyPhase:true, allowDead:true,
+    title:'🐺 Bạn là Sói Thợ Săn – bị treo!', desc:'Kéo 1 người chết theo bạn (hoặc bỏ qua).',
+    targets:tRef(aliveList()), deadline:Date.now()+timeoutSec*1000 };
+  db.ref(`rooms/${room}/private/${uidOf(hangedIdx)}/prompt`).set(pr);
+  $('dTally').innerHTML=`⏳ Đang chờ <b>${esc(state.players[hangedIdx].name)}</b> (Sói Thợ Săn) chọn người kéo theo...
+    <button class="btn btn-ghost btn-sm" onclick="mcRevenge()">MC chọn thay</button>`;
+  clearTimeout(revengeTimer);
+  revengeTimer=setTimeout(()=>{ if(revengePending!==null){ finishRevenge(null); } }, timeoutSec*1000);
+}
+function mcRevenge(){
+  if(revengePending===null) return;
+  pickModal('🐺 MC chọn thay – Sói Thợ Săn kéo ai?', aliveList(), i=>finishRevenge(i));
+}
+function handleRevengeAction(fromUid, action){
+  if(revengePending===null || idxOf(fromUid)!==revengePending) return;
+  if(action.skip){ finishRevenge(null); return; }
+  const ti=idxOf((action.targets||[])[0]);
+  if(ti<0 || !state.players[ti].alive) return; // không hợp lệ → chờ chọn lại/timeout
+  finishRevenge(ti);
+}
+function finishRevenge(ti){
+  if(revengePending===null) return;
+  const hangedUid=uidOf(revengePending);
+  const {pub, hangRes}=revengeCtx||{};
+  revengePending=null; clearTimeout(revengeTimer);
+  db.ref(`rooms/${room}/private/${hangedUid}/prompt`).set(null);
+  if(ti!=null){
+    const rv=E.applyRevenge(state,ti);
+    const u2={}; state.players.forEach((p,j)=>{ u2[`public/players/${uidOf(j)}/alive`]=p.alive; });
+    u2['public/announce']=(pub||'')+`\n🐺 ${state.players[ti].name} bị Sói Thợ Săn kéo chết theo!`;
+    db.ref(`rooms/${room}`).update(u2);
+    hist[0] && hist[0].lines && hist[0].lines.push(...rv.lines); renderHistory();
+    renderGod(); saveLocal();
+    if(rv.win){ showEnd(rv.win); return; }
+  } else {
+    db.ref(`rooms/${room}/public/announce`).set((pub||'')+'\n🐺 Sói Thợ Săn không kéo ai theo.');
+  }
+  if(hangRes && hangRes.win){ showEnd(hangRes.win); return; }
+  afterHang(hangRes||{blocked:false});
+}
+function afterHang(r){
+  if(r.blocked){ renderTally(); return; } // án bị chặn (Hoàng Tử/Kẻ Ngốc) – vẫn là ngày
+  toNight();
+}
+function noHang(){
+  db.ref(`rooms/${room}/public/announce`).set(`☀️ Ngày ${state.day}: không ai bị treo cổ.`);
+  hist.unshift({ type:'day', day:state.day, executed:null, target:null, blocked:false, lines:['Không ai bị treo cổ.'], votes:[] });
+  renderHistory();
+  toNight();
+}
+
+/* ═══ LỊCH SỬ ═══ */
+function renderHistory(){
+  const el=$('histList'); if(!el) return;
+  show('pHistory', hist.length>0);
+  el.innerHTML=hist.map((h,idx)=>{
+    const open=idx===0;
+    if(h.type==='night'){
+      const d=h.deaths.length? h.deaths.map(x=>`${x.icon} ${esc(x.name)} (${x.role})`).join(', ') : 'Không ai chết';
+      return `<div style="border:1px solid var(--border);border-radius:10px;margin-bottom:8px;overflow:hidden">
+        <div style="padding:8px 12px;background:var(--surface2);cursor:pointer;display:flex;gap:10px;align-items:center"
+             onclick="const b=this.nextElementSibling;b.style.display=b.style.display==='none'?'block':'none'">
+          <b>🌙 Đêm ${h.night}</b><span class="muted" style="flex:1">💀 ${d}</span><span class="muted">▼</span></div>
+        <div style="padding:8px 12px;display:${open?'block':'none'}" class="loglines">${h.events.length?h.events.map(esc).join('\n'):'Không có hành động.'}</div>
+      </div>`;
+    }
+    const head=h.executed? `🪢 ${h.icon||''} ${esc(h.executed)} (${h.role||'?'})` : (h.blocked? `🛡️ ${esc(h.target||'')} thoát án` : 'Không treo ai');
+    return `<div style="border:1px solid #854d0e;border-radius:10px;margin-bottom:8px;overflow:hidden">
+      <div style="padding:8px 12px;background:#1c1000;cursor:pointer;display:flex;gap:10px;align-items:center"
+           onclick="const b=this.nextElementSibling;b.style.display=b.style.display==='none'?'block':'none'">
+        <b>☀️ Ngày ${h.day}</b><span class="muted" style="flex:1">${head}</span><span class="muted">▼</span></div>
+      <div style="padding:8px 12px;display:${open?'block':'none'}" class="loglines">${h.votes.concat(h.lines).map(esc).join('\n')||'—'}</div>
+    </div>`;
+  }).join('');
+}
+function toNight(){
+  db.ref(`rooms/${room}/public/vote`).set({open:false});
+  show('btnVoteOpen',true); show('btnVoteClose',false);
+  E.nextNight(state);
+  show('pDay',false);
+  beginNight();
+}
+
+/* ═══ END ═══ */
+function showEnd(win){
+  state.phase='ended'; state.winner=win.winner; setPhaseTag(); saveLocal();
+  const upd={};
+  upd['meta/phase']='ended'; upd['meta/winner']=win.winner;
+  const rv={};
+  state.players.forEach((p,i)=>{ const r=E.roleOf(p.roleId); rv[uidOf(i)]={name:p.name,role:r.name,icon:r.icon,alive:p.alive,seat:i}; });
+  upd['public/reveal']=rv;
+  upd['public/history']=hist; // game xong → công khai lịch sử cho mọi người chơi
+  db.ref(`rooms/${room}`).update(upd);
+  show('pNight',false); show('pMorning',false); show('pDay',false); show('pEnd',true);
+  const W={village:'🏆 PHE DÂN LÀNG THẮNG!',wolf:'🐺 PHE MA SÓI THẮNG!',third:'🎭 PHE THỨ BA THẮNG!'};
+  $('endTitle').textContent=W[win.winner]||'🏁 Kết thúc';
+  $('endDesc').textContent=(win.desc||'')+'\n\n'+state.players.map(p=>{const r=E.roleOf(p.roleId);return `${r.icon} ${p.name} – ${r.name}${p.alive?'':' 💀'}`;}).join('\n');
+}
+
+/* ═══ VÁN MỚI CÙNG NHÓM – giữ người chơi, xóa sạch ván cũ ═══ */
+function newMatch(){
+  if(!room) return;
+  const upd={};
+  upd['meta/phase']='lobby'; upd['meta/nightNo']=0; upd['meta/dayNo']=0; upd['meta/winner']=null; upd['meta/stepType']=null;
+  upd['public/announce']='🔄 Ván mới! Chờ quản trò phát bài...';
+  upd['public/reveal']=null; upd['public/history']=null; upd['public/vote']=null;
+  upd['chat']=null; upd['actions']=null; upd['votes']=null; upd['wolves']=null;
+  Object.keys(pubPlayers).forEach(u=>{ upd[`public/players/${u}/alive`]=true; upd[`private/${u}`]=null; });
+  db.ref(`rooms/${room}`).update(upd);
+  state=null; nd=null; hist=[]; wolfVotes={}; morningResult=null; revengePending=null; wavePending=[];
+  chatMsgs={main:[],wolf:[],dead:[]}; chatUnread={main:0,wolf:0,dead:0}; dmUnread={}; renderChat();
+  votesRaw={};
+  saveLocal();
+  show('pEnd',false); show('pGod',false); show('pHistory',false); show('pNight',false); show('pMorning',false); show('pDay',false);
+  show('pLobby',true); show('pRoles',true);
+  renderRoles(); renderLobby(); setPhaseTag();
+}
+
+/* ═══ GOD VIEW + modal ═══ */
+function renderGod(){
+  if(!state){ $('godTable').innerHTML=''; return; }
+  $('godTable').innerHTML='<tr><th>#</th><th>Tên</th><th>Vai</th><th></th><th></th></tr>'+
+    state.players.map((p,i)=>{
+      const r=E.roleOf(p.roleId);
+      return `<tr class="${p.alive?'':'dead'}"><td>${i+1}</td>
+        <td>${presence[uidOf(i)]?'🟢':'🔴'} ${esc(p.name)}</td>
+        <td>${r.icon} ${r.name}</td>
+        <td>${p.alive?'🟢 sống':'💀 chết'}</td>
+        <td>${p.alive
+          ? `<button class="btn btn-ghost btn-sm" onclick="godKill(${i})">💀 Giết</button>`
+          : `<button class="btn btn-ghost btn-sm" onclick="godRevive(${i})">♻️ Hồi sinh</button>`}</td></tr>`;
+    }).join('');
+}
+function godKill(i){ // MC xử thủ công (role ngoài v1, xử lý luật đặc biệt)
+  state.players[i].alive=false;
+  db.ref(`rooms/${room}/public/players/${uidOf(i)}/alive`).set(false);
+  const w=E.checkWin(state); renderGod(); saveLocal();
+  if(w) showEnd(w);
+}
+function godRevive(i){
+  state.players[i].alive=true;
+  db.ref(`rooms/${room}/public/players/${uidOf(i)}/alive`).set(true);
+  renderGod(); saveLocal();
+}
+function pickModal(title,list,cb){
+  $('mdTitle').textContent=title;
+  $('mdBody').innerHTML=list.map(({p,i})=>`<button class="btn btn-ghost btn-sm" onclick="mdPick(${i})">${esc(p.name)}</button>`).join('');
+  window.mdPick=i=>{ show('modal',false); cb(i); };
+  show('modal',true);
+}
+</script>
+</body>
+</html>

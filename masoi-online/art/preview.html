@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>🐺 Xem trước bộ bài gothic</title>
+<style>
+body { background:#0f0a1e; color:#ede9fe; font-family:system-ui,sans-serif; padding:24px; margin:0; }
+h1 { font-size:1.2rem; }
+.grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:18px; margin-top:18px; }
+.tcard { background:#15102a; border:1.5px solid #9d7c3e; border-radius:12px; padding:7px; }
+.tin { border:1px solid rgba(157,124,62,.45); border-radius:8px; overflow:hidden; }
+.art { aspect-ratio:2/3; }
+.art svg { display:block; }
+.plate { text-align:center; padding:9px 6px 10px; border-top:1px solid rgba(157,124,62,.45); }
+.nm { font-family:Georgia,serif; font-size:1.02rem; color:#c9a55c; }
+.tm { font-size:.7rem; margin-top:2px; }
+.tm.wolf { color:#b3475a; } .tm.village { color:#8f86c9; } .tm.third { color:#c99a55; }
+</style>
+</head>
+<body>
+<h1>🐺 Bộ bài gothic – 22 role</h1>
+<div class="grid" id="grid"></div>
+<script src="../role-art.js"></script>
+<script src="../engine.js"></script>
+<script>
+const TEAM={wolf:'phe sói',village:'phe dân làng',third:'phe thứ ba'};
+document.getElementById('grid').innerHTML = MaSoiEngine.ROLES.map(r=>`
+  <div class="tcard"><div class="tin">
+    <div class="art">${ROLE_ART[r.id]||''}</div>
+    <div class="plate"><div class="nm">${r.name}</div><div class="tm ${r.team}">${TEAM[r.team]}</div></div>
+  </div></div>`).join('');
+</script>
+</body>
+</html>

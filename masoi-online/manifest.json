@@ -1,0 +1,15 @@
+{
+  "name": "Ma Sói Online",
+  "short_name": "Ma Sói",
+  "description": "Ma Sói chơi nhiều người – nhận vai, hành động đêm và vote ngay trên điện thoại",
+  "start_url": "player.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f0a1e",
+  "theme_color": "#0f0a1e",
+  "lang": "vi",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

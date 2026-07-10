@@ -1,0 +1,12 @@
+{
+  "name": "@masoi/engine",
+  "version": "0.1.0",
+  "description": "Ma Sói game engine — logic thuần, không DOM, không Firebase",
+  "main": "src/engine.js",
+  "scripts": {
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "vitest": "^2.1.0"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "name": "masoi",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Ma Sói online — monorepo (engine, web app, server)",
+  "scripts": {
+    "test": "pnpm -r test",
+    "test:engine": "pnpm --filter @masoi/engine test"
+  }
+}
