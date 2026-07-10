@@ -1,0 +1,19 @@
+{
+  "name": "@masoi/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Ma Sói authoritative server — Node + WebSocket, auto-MC (Phase 1 v0)",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "ws": "^8.18.0",
+    "@masoi/engine": "workspace:*"
+  },
+  "devDependencies": {
+    "vitest": "^2.1.0"
+  }
+}
