@@ -41,6 +41,7 @@
     <div class="row" id="statusRow" style="margin-top:8px">
       <span class="pill" id="phasePill">—</span>
       <span class="muted" id="aliveInfo"></span>
+      <button class="ghost" style="margin-left:auto;padding:5px 10px" onclick="leave()">Rời phòng</button>
     </div>
   </div>
 
@@ -87,6 +88,16 @@
     <div id="overReveal" class="muted"></div>
   </div>
 
+  <div class="card hidden" id="chatCard">
+    <div class="title">💬 Chat</div>
+    <div class="row" id="chatTabs" style="margin-bottom:6px"></div>
+    <div id="chatMsgs" style="max-height:180px;overflow:auto;font-size:.9rem;line-height:1.6;background:var(--surface2);border:1px solid var(--border);border-radius:9px;padding:8px">—</div>
+    <div class="row" style="margin-top:6px">
+      <input id="chatIn" placeholder="Nhắn tin…" style="flex:1" onkeydown="if(event.key==='Enter')sendChat()">
+      <button onclick="sendChat()">Gửi</button>
+    </div>
+  </div>
+
   <div class="card">
     <div class="title">📜 Diễn biến</div>
     <div id="log" class="muted">—</div>
@@ -102,20 +113,33 @@
 'use strict';
 const $ = id => document.getElementById(id);
 const show = (id,on) => $(id).classList.toggle('hidden',!on);
-let ws=null, myId=null, players=[], phase='lobby', curPrompt=null, sel=[], witchSel={heal:null,poison:null}, tInt=null;
+let ws=null, myId=null, myTeam=null, myAlive=true, players=[], phase='lobby', curPrompt=null, sel=[], witchSel={heal:null,poison:null}, tInt=null, myVote=null, voteOptions=[];
+let chatBuf={main:[],wolf:[],dead:[]}, chatCh='main';
 
 function logLine(s){ const el=$('log'); el.textContent = (el.textContent==='—'?'':el.textContent+'\n') + s; el.scrollTop=el.scrollHeight; }
 function send(o){ if(ws&&ws.readyState===1) ws.send(JSON.stringify(o)); }
+function esc(s){ return String(s||'').replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c])); }
 
-function doJoin(){
-  const url=$('wsUrl').value.trim();
+function connect(mode){
+  const url=$('wsUrl').value.trim(), room=$('room').value.trim(), name=$('name').value.trim()||'Ẩn danh';
   ws = new WebSocket(url);
   $('conn').textContent='Đang kết nối…';
-  ws.onopen = ()=>{ $('conn').textContent='Đã kết nối ✓'; send({t:'join', room:$('room').value.trim(), name:$('name').value.trim()||'Ẩn danh'}); $('joinRow').style.opacity=.5; };
-  ws.onclose= ()=>{ $('conn').textContent='Mất kết nối'; };
+  ws.onopen = ()=>{
+    $('conn').textContent='Đã kết nối ✓'; $('joinRow').style.opacity=.5;
+    if(mode==='resume') send({t:'resume', room, token:localStorage.getItem('masoi_token')});
+    else send({t:'join', room, name});
+    localStorage.setItem('masoi_room', room); localStorage.setItem('masoi_name', name);
+  };
+  ws.onclose= ()=>{ $('conn').textContent='Mất kết nối (thử tải lại trang để vào lại)'; };
   ws.onerror= ()=>{ $('conn').textContent='Lỗi kết nối (server đã chạy chưa?)'; };
   ws.onmessage = e => handle(JSON.parse(e.data));
 }
+function doJoin(){ connect('join'); }
+function leave(){ try{ ws && ws.close(); }catch(e){} localStorage.removeItem('masoi_token'); location.reload(); }
+window.addEventListener('load', ()=>{
+  const t=localStorage.getItem('masoi_token'), r=localStorage.getItem('masoi_room');
+  if(t && r){ $('room').value=r; $('name').value=localStorage.getItem('masoi_name')||''; connect('resume'); }
+});
 
 function updVillager(){
   const total=players.length;
@@ -132,33 +156,60 @@ function doStart(){
 
 function handle(m){
   switch(m.t){
-    case 'welcome': myId=m.id; break;
-    case 'lobby': players=m.players; renderPlayers(); updVillager(); break;
+    case 'welcome': myId=m.id; if(m.token) localStorage.setItem('masoi_token', m.token); break;
+    case 'lobby': players=m.players; renderPlayers(); updVillager(); show('chatCard',true); updateChatTabs(); break;
     case 'yourRole':
+      myTeam=m.role.team;
       show('roleCard',true);
       $('roleBody').innerHTML = `${m.role.icon||''} <b style="color:var(--gold)">${m.role.name}</b> <span class="pill">${teamVi(m.role.team)}</span>`
         + (m.mates&&m.mates.length?`<div class="muted" style="margin-top:6px">Đồng đội: ${m.mates.map(x=>x.name).join(', ')}</div>`:'');
+      show('chatCard',true); updateChatTabs();
       break;
     case 'state':
       phase=m.phase; players=m.players; renderPlayers();
+      { const meP=players.find(p=>p.id===myId); myAlive = meP ? meP.alive!==false : true; }
+      updateChatTabs();
       $('phasePill').textContent = {lobby:'🚪 Lobby',night:'🌙 Đêm '+m.nightNo,day:'☀️ Ngày '+m.dayNo,ended:'🏁 Kết thúc'}[m.phase]||m.phase;
       $('aliveInfo').textContent = m.aliveCount!=null?`${m.aliveCount} người còn sống`:'';
       show('lobbyCard', m.phase==='lobby');
       if(m.phase!=='night'){ show('promptCard',false); show('sleepCard',false); clearInterval(tInt); }
       if(m.phase!=='day') show('voteCard',false);
       break;
+    case 'chatMsg': (chatBuf[m.channel] ||= []).push({from:m.from,text:m.text}); if(m.channel===chatCh) renderChat(); break;
     case 'scene': logLine(m.phase==='night'?`🌙 — Đêm ${m.nightNo} —`:`☀️ — Ngày ${m.dayNo} —`); break;
     case 'prompt': curPrompt=m; sel=[]; witchSel={heal:null,poison:null}; show('sleepCard',false); renderPrompt(); break;
-    case 'sleep': show('promptCard',false); show('sleepCard',true); clearInterval(tInt); break;
+    case 'sleep': curPrompt=null; show('promptCard',false); show('sleepCard',true); clearInterval(tInt); break;
     case 'privateResult': logLine('🔒 '+m.text); break;
-    case 'morning': show('promptCard',false); show('sleepCard',false); logLine('🌅 '+m.lines.join('\n')); break;
+    case 'morning': curPrompt=null; show('promptCard',false); show('sleepCard',false); logLine('🌅 '+m.lines.join('\n')); break;
     case 'voteOpen': renderVote(m); break;
     case 'voteTally': $('voteTally').textContent = 'Phiếu: '+Object.entries(m.tally).map(([i,c])=>`${nameOf(players[i]&&players[i].id)||('#'+i)}:${c}`).join('  ·  '); break;
     case 'day': show('voteCard',false); logLine('⚖️ '+m.lines.join('\n')); break;
     case 'gameOver': renderOver(m); break;
-    case 'error': logLine('⚠️ '+m.message); break;
+    case 'error':
+      logLine('⚠️ '+m.message);
+      if(/Phiên không còn/.test(m.message)){ localStorage.removeItem('masoi_token'); $('joinRow').style.opacity=1; $('conn').textContent='Phiên cũ hết hạn — hãy Vào phòng lại.'; }
+      else if(curPrompt){ show('promptCard',true); show('sleepCard',false); renderPrompt(); }  // cho làm lại
+      break;
   }
 }
+
+/* ── Chat ── */
+const CH_VI = { main:'💬 Chung', wolf:'🐺 Sói', dead:'👻 Âm phủ' };
+function updateChatTabs(){
+  const tabs=['main'];
+  if(myTeam==='wolf') tabs.push('wolf');
+  if(myAlive===false) tabs.push('dead');
+  if(!tabs.includes(chatCh)) chatCh='main';
+  $('chatTabs').innerHTML = tabs.map(c=>`<button class="ghost ${c===chatCh?'sel':''}" onclick="setChatCh('${c}')">${CH_VI[c]}</button>`).join('');
+  renderChat();
+}
+function setChatCh(c){ chatCh=c; updateChatTabs(); }
+function renderChat(){
+  const arr=chatBuf[chatCh]||[];
+  $('chatMsgs').innerHTML = arr.map(m=>`<div><b style="color:var(--accent)">${esc(m.from)}:</b> ${esc(m.text)}</div>`).join('') || '<span class="muted">Chưa có tin nhắn.</span>';
+  $('chatMsgs').scrollTop=$('chatMsgs').scrollHeight;
+}
+function sendChat(){ const t=$('chatIn').value.trim(); if(!t) return; send({t:'chat', channel:chatCh, text:t}); $('chatIn').value=''; }
 const teamVi = t => ({wolf:'🐺 Phe Sói',village:'🏡 Phe Dân',third:'🎭 Phe Thứ Ba'}[t]||t);
 const nameOf = id => { const p=players.find(x=>x.id===id); return p?p.name:''; };
 
@@ -173,11 +224,18 @@ function renderPrompt(){
   if(p.deadline){ clearInterval(tInt); const tick=()=>{ const s=Math.max(0,Math.ceil((p.deadline-Date.now())/1000)); $('promptTimer').textContent='⏱️ còn '+s+'s'; if(s<=0)clearInterval(tInt); }; tick(); tInt=setInterval(tick,500); }
   const opts=(p.options||[]).filter(o=>o.id!==myId||p.stepType==='witch'); // ẩn chính mình cho vai nhắm người khác (witch có thể tự cứu)
   if(p.mode==='witch'){
-    $('promptBody').innerHTML =
-      `<div class="muted">💊 Cứu (chọn 1 hoặc bỏ):</div><div class="grid" id="healGrid">`+
-      p.options.map(o=>`<button class="ghost" data-h="${o.id}" onclick="pickWitch('heal','${o.id}')">${o.name}</button>`).join('')+`</div>`+
-      `<div class="muted" style="margin-top:8px">☠️ Độc (chọn 1 hoặc bỏ):</div><div class="grid" id="poiGrid">`+
-      p.options.map(o=>`<button class="ghost" data-p="${o.id}" onclick="pickWitch('poison','${o.id}')">${o.name}</button>`).join('')+`</div>`;
+    const vic = (p.victims&&p.victims.length)
+      ? `🐺 Đêm nay Sói cắn: <b style="color:var(--red)">${p.victims.map(esc).join(', ')}</b>`
+      : 'Đêm nay Sói không cắn ai.';
+    const heal = p.healUsed
+      ? '<div class="muted">💊 Bình cứu đã dùng hết.</div>'
+      : `<div class="muted">💊 Cứu (chọn 1 hoặc bỏ):</div><div class="grid">`+
+        p.options.map(o=>`<button class="ghost" data-h="${o.id}" onclick="pickWitch('heal','${o.id}')">${esc(o.name)}</button>`).join('')+`</div>`;
+    const poison = p.poisonUsed
+      ? '<div class="muted" style="margin-top:8px">☠️ Bình độc đã dùng hết.</div>'
+      : `<div class="muted" style="margin-top:8px">☠️ Độc (chọn 1 hoặc bỏ):</div><div class="grid">`+
+        p.options.map(o=>`<button class="ghost" data-p="${o.id}" onclick="pickWitch('poison','${o.id}')">${esc(o.name)}</button>`).join('')+`</div>`;
+    $('promptBody').innerHTML = `<div class="muted" style="margin-bottom:6px">${vic}</div>`+heal+poison;
   } else {
     $('promptBody').innerHTML = `<div class="grid">`+
       opts.map(o=>`<button class="ghost" data-id="${o.id}" onclick="togglePick('${o.id}')">${o.name}</button>`).join('')+`</div>`;
@@ -202,11 +260,13 @@ function sendPick(){
 function sendSkip(){ send({t:'action', action:{skip:true}}); show('promptCard',false); show('sleepCard',true); clearInterval(tInt); }
 
 function renderVote(m){
-  show('voteCard',true);
-  $('voteGrid').innerHTML=(m.options||[]).map(o=>`<button class="ghost" onclick="castVote('${o.id}')">${o.name}</button>`).join('');
+  show('voteCard',true); voteOptions=m.options||[]; myVote=null; drawVote();
   $('voteTally').textContent='Chưa có phiếu.';
 }
-function castVote(id){ send({t:'vote', target:id}); }
+function drawVote(){
+  $('voteGrid').innerHTML=voteOptions.map(o=>`<button class="ghost ${myVote===o.id?'sel':''}" onclick="castVote('${o.id}')">${esc(o.name)}</button>`).join('');
+}
+function castVote(id){ myVote=id; send({t:'vote', target:id}); drawVote(); }
 
 function renderOver(m){
   show('overCard',true); show('promptCard',false); show('sleepCard',false); show('voteCard',false);

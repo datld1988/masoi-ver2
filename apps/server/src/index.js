@@ -4,26 +4,29 @@
    - Mở trình duyệt: http://localhost:8080        → client thử
    - Client nối WebSocket tới:   ws://localhost:8080
 
+   Danh tính: mỗi người có "token" ổn định (= playerId). Client lưu token để RECONNECT.
    Message client → server (JSON):
-     { t:'join',   room, name }
+     { t:'join',   room, name }              → server trả { t:'welcome', id, token }
+     { t:'resume', room, token }             → vào lại đúng trạng thái
      { t:'start',  counts }
      { t:'action', action:{ targets:[id...] | heal:id, poison:id | skip:true } }
      { t:'vote',   target }
+     { t:'chat',   channel:'main'|'wolf'|'dead', text }
    Server → client: xem room.js (welcome, yourRole, state, scene, prompt, sleep,
-     privateResult, morning, voteOpen, voteTally, day, gameOver, error). */
+     privateResult, morning, voteOpen, voteTally, day, chatMsg, gameOver, error). */
 
 import { WebSocketServer } from 'ws';
 import { createServer } from 'http';
 import { readFile } from 'fs/promises';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { randomUUID } from 'crypto';
 import { Room } from './room.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 8080;
 const rooms = new Map();          // code -> Room
-const sockets = new Map();        // playerId -> ws
-let seq = 0;
+const sockets = new Map();        // playerId(token) -> ws
 
 function getRoom(code) {
   if (!rooms.has(code)) {
@@ -37,6 +40,7 @@ function getRoom(code) {
   }
   return rooms.get(code);
 }
+const newId = () => (globalThis.crypto?.randomUUID ? crypto.randomUUID() : randomUUID());
 
 const httpServer = createServer(async (req, res) => {
   try {
@@ -51,30 +55,51 @@ const httpServer = createServer(async (req, res) => {
 const wss = new WebSocketServer({ server: httpServer });
 
 wss.on('connection', (ws) => {
-  const pid = 'p' + (++seq);
-  sockets.set(pid, ws);
-  ws._pid = pid;
-
   ws.on('message', (data) => {
     let m;
     try { m = JSON.parse(data.toString()); } catch { return; }
+
     if (m.t === 'join') {
-      ws._room = getRoom(m.room);
-      ws.send(JSON.stringify({ t: 'welcome', id: pid }));
-      ws._room.join(pid, m.name);
+      const room = getRoom(m.room);
+      const pid = newId();
+      ws._room = room; ws._pid = pid;
+      sockets.set(pid, ws);
+      ws.send(JSON.stringify({ t: 'welcome', id: pid, token: pid }));
+      room.join(pid, m.name);
       return;
     }
-    const room = ws._room;
-    if (!room) return;
+    if (m.t === 'resume') {
+      const room = getRoom(m.room);
+      const pid = m.token;
+      if (pid && room.hasPlayer(pid)) {
+        ws._room = room; ws._pid = pid;
+        sockets.set(pid, ws);
+        ws.send(JSON.stringify({ t: 'welcome', id: pid, token: pid, resumed: true }));
+        room.resume(pid);
+      } else {
+        ws.send(JSON.stringify({ t: 'error', message: 'Phiên không còn hợp lệ, hãy vào lại phòng.' }));
+      }
+      return;
+    }
+
+    const room = ws._room, pid = ws._pid;
+    if (!room || !pid) return;
     switch (m.t) {
       case 'start': { const rs = room.start(m.counts || {}); if (!rs.ok) ws.send(JSON.stringify({ t: 'error', message: rs.error })); break; }
       case 'action': room.handleAction(pid, m.action || {}); break;
       case 'vote':   room.handleVote(pid, m.target); break;
-      default: break;   // chat/dm/reconnect: TODO
+      case 'chat':   room.handleChat(pid, m.channel, m.text); break;
+      default: break;
     }
   });
 
-  ws.on('close', () => { sockets.delete(pid); });
+  ws.on('close', () => {
+    const pid = ws._pid;
+    if (pid && sockets.get(pid) === ws) {
+      sockets.delete(pid);
+      if (ws._room) ws._room.setConnected(pid, false);   // giữ chỗ để reconnect
+    }
+  });
 });
 
 httpServer.listen(PORT, () => {
