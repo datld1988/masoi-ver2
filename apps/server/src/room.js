@@ -120,6 +120,15 @@ export class Room {
     if (!this.cur.actors.has(i)) return;
     const type = this.cur.type;
 
+    // Bỏ lượt: đánh dấu đã hành động, không tác động engine
+    if (action && action.skip) {
+      if (type === 'wolf') this.cur.wolfVotes[i] = [];
+      this.cur.acted.add(i);
+      if (this.cur.acted.size >= this.cur.actors.size)
+        return type === 'wolf' ? this.finishWolf() : this.nextStep();
+      return;
+    }
+
     if (type === 'wolf') {
       this.cur.wolfVotes[i] = (action.targets || []).map(t => this.idx(t)).filter(x => x >= 0);
       this.cur.acted.add(i);
