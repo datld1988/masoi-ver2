@@ -61,6 +61,15 @@ Railway có credit dùng thử; hết credit phải trả phí.
   giữa ván. Muốn bền thật (khôi phục sau mọi lần restart, nhiều máy chủ) cần **Redis** — Phase 2.
 - WebSocket + HTTPS/wss được hỗ trợ sẵn trên cả hai nền tảng.
 
+## Giữ server luôn thức (chống cold-start)
+
+Cách miễn phí, đơn giản: dùng **UptimeRobot** ping trang chủ mỗi 5 phút.
+1. https://uptimerobot.com → tạo tài khoản.
+2. **Add New Monitor** → Type: **HTTP(s)** → URL: `https://<tên>.onrender.com/` → Interval: **5 phút** → Create.
+
+Vậy là có request đều đặn, service không "ngủ". (Lưu ý: giữ thức liên tục sẽ tiêu giờ chạy của gói
+free nhanh hơn; nếu chơi theo hẹn giờ thì chỉ cần bật monitor quanh giờ chơi.)
+
 ## Xử lý sự cố build
 
 - Nếu báo lỗi `corepack: command not found` → đổi **Build Command** thành:

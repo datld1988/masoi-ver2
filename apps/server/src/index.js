@@ -117,6 +117,7 @@ wss.on('connection', (ws) => {
       case 'action': room.handleAction(pid, m.action || {}); break;
       case 'vote':   room.handleVote(pid, m.target); break;
       case 'chat':   room.handleChat(pid, m.channel, m.text); break;
+      case 'newMatch': room.newMatch(); break;
       default: break;
     }
     scheduleSave();

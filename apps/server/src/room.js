@@ -281,6 +281,19 @@ export class Room {
     this.broadcast({ t: 'gameOver', winner: win.winner, desc: win.desc, reveal });
   }
 
+  /* ── VÁN MỚI CÙNG NHÓM: giữ người chơi, xoá ván cũ, về phòng chờ ── */
+  newMatch() {
+    if (this.phase !== 'ended') return;
+    this.clearTimer();
+    this.state = null; this.nd = null; this.cur = null;
+    this.votes = {}; this.voteOpen = false;
+    this.chatLog = { main: [], wolf: [], dead: [] };
+    this.phase = 'lobby';
+    this.broadcast({ t: 'newMatch' });
+    this.broadcast({ t: 'lobby', players: this.publicPlayers() });
+    this.broadcastState();
+  }
+
   /* ── BỀN BỈ: snapshot / khôi phục (restart không mất ván) ── */
   serialize() {
     const c = this.cur;

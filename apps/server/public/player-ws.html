@@ -76,6 +76,7 @@ input[type=text],input[type=number]{width:100%;padding:11px;border-radius:10px;b
 <body>
 <div id="scene" aria-hidden="true"></div>
 <header>🐺 Ma Sói <span class="room" id="hdRoom"></span>
+  <button id="sndBtn" onclick="toggleSnd()" title="Bật/tắt âm thanh">🔊</button>
   <button id="bgBtn" onclick="toggleBg()" title="Bật/tắt nền 3D">🌌</button>
 </header>
 <div id="sceneOv"><div id="ovIcon"></div><div id="ovTxt"></div></div>
@@ -177,7 +178,8 @@ input[type=text],input[type=number]{width:100%;padding:11px;border-radius:10px;b
     <section class="card center hidden" id="endBox">
       <div class="big" id="endIcon">🏆</div><div class="title" id="endTitle"></div>
       <div id="endReveal" style="text-align:left;margin-top:10px;line-height:1.7"></div>
-      <button class="btn btn-ghost" onclick="leave()" style="margin-top:10px">🚪 Rời phòng</button>
+      <button class="btn btn-primary" onclick="sendNewMatch()" style="margin-top:10px">🔄 Ván mới cùng nhóm</button>
+      <button class="btn btn-ghost" onclick="leave()" style="margin-top:6px">🚪 Rời phòng</button>
     </section>
   </div>
 </main>
@@ -222,9 +224,25 @@ function doJoin(){ const r=$('inRoom').value.trim(); if(!r){$('joinErr').textCon
 function leave(){ try{ws&&ws.close();}catch(e){} localStorage.removeItem('masoi_ws_token'); location.reload(); }
 window.addEventListener('load',()=>{
   $('wsUrl').value=defUrl();
+  if($('sndBtn')) $('sndBtn').textContent=sndOn?'🔊':'🔇';
   const t=localStorage.getItem('masoi_ws_token'), r=localStorage.getItem('masoi_ws_room');
   if(t&&r){ $('inRoom').value=r; $('inName').value=localStorage.getItem('masoi_ws_name')||''; connect('resume'); }
 });
+function sendNewMatch(){ send({t:'newMatch'}); }
+
+/* ── Âm thanh (Web Audio tổng hợp) ── */
+let sndOn=(localStorage.getItem('masoi_ws_snd')!=='0'), actx=null;
+function aCtx(){ if(!actx) actx=new (window.AudioContext||window.webkitAudioContext)(); if(actx.state==='suspended') actx.resume(); return actx; }
+function tone(o){ if(!sndOn) return; try{ const c=aCtx(),t=c.currentTime; const {w='sine',f0=440,f1=null,d=.5,v=.1,a=.04}=o;
+  const os=c.createOscillator(); os.type=w; os.frequency.setValueAtTime(f0,t); if(f1)os.frequency.exponentialRampToValueAtTime(f1,t+d);
+  const g=c.createGain(); g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(v,t+a); g.gain.exponentialRampToValueAtTime(.001,t+d);
+  os.connect(g); g.connect(c.destination); os.start(t); os.stop(t+d+.05);}catch(e){} }
+function sndNight(){ tone({f0:40,d:3,v:.15,a:.8}); tone({w:'sawtooth',f0:260,f1:90,d:2.4,v:.06,a:.5}); }
+function sndDay(){ [293,349,440,523].forEach((f,i)=>setTimeout(()=>tone({w:'triangle',f0:f,d:.5,v:.09}),i*140)); }
+function sndTurn(){ tone({f0:880,d:.12,v:.11}); setTimeout(()=>tone({f0:1175,d:.2,v:.11}),140); }
+function sndWin(){ [523,659,784,1047].forEach((f,i)=>setTimeout(()=>tone({w:'triangle',f0:f,d:.5,v:.12}),i*130)); }
+function toggleSnd(){ sndOn=!sndOn; localStorage.setItem('masoi_ws_snd',sndOn?'1':'0'); if($('sndBtn'))$('sndBtn').textContent=sndOn?'🔊':'🔇'; if(sndOn)tone({f0:660,d:.15,v:.1}); }
+document.addEventListener('pointerdown',function once(){ try{aCtx();}catch(e){} document.removeEventListener('pointerdown',once); });
 
 /* ── Đếm ngược ── */
 const cds={}; const cdEl={vote:'voteTimer',day:'dayTimer'};
@@ -240,11 +258,11 @@ function handle(m){
     case 'yourRole': myTeam=m.role.team; renderRole(m); break;
     case 'state': onState(m); break;
     case 'scene':
-      if(m.phase==='night'){ sceneOverlay('🌙',`Đêm ${m.nightNo} buông xuống…`,'night'); clearCd('day'); }
-      else if(m.phase==='day'){ sceneOverlay('🌅','Trời sáng rồi!','day'); $('announce').textContent='🗣️ Cả làng thảo luận…'; countdown('day', m.deadline, '🗣️ Mở vote sau'); }
+      if(m.phase==='night'){ sceneOverlay('🌙',`Đêm ${m.nightNo} buông xuống…`,'night'); clearCd('day'); sndNight(); }
+      else if(m.phase==='day'){ sceneOverlay('🌅','Trời sáng rồi!','day'); $('announce').textContent='🗣️ Cả làng thảo luận…'; countdown('day', m.deadline, '🗣️ Mở vote sau'); sndDay(); }
       break;
     case 'prompt': curPrompt=m; sel=[]; witchSel={heal:null,poison:null}; promptTotal=m.deadline?Math.max(1,Math.ceil((m.deadline-Date.now())/1000)):0;
-      show('sleepBox',false); show('promptBox',true); renderPrompt(); if(navigator.vibrate)try{navigator.vibrate([200,90,200]);}catch(e){} break;
+      show('sleepBox',false); show('promptBox',true); renderPrompt(); sndTurn(); if(navigator.vibrate)try{navigator.vibrate([200,90,200]);}catch(e){} break;
     case 'sleep': curPrompt=null; show('promptBox',false); show('sleepBox',true); break;
     case 'privateResult': show('resultBox',true); $('resultBox').textContent='🔒 '+m.text; break;
     case 'morning': show('promptBox',false); show('sleepBox',false); show('dayBox',true); $('announce').textContent=(m.lines||[]).join('\n'); pushHist(`🌙 Đêm ${m.nightNo}`, m.lines); break;
@@ -252,7 +270,14 @@ function handle(m){
     case 'voteTally': $('voteStatus').textContent='Phiếu: '+Object.entries(m.tally).map(([i,c])=>`${(players[i]&&players[i].name)||('#'+i)}:${c}`).join('  ·  '); break;
     case 'day': show('voteBox',false); clearCd('vote'); clearCd('day'); $('announce').textContent=(m.lines||[]).join('\n'); pushHist(`⚖️ Ngày ${meta.dayNo||''}`.trim(), m.lines); break;
     case 'chatMsg': (chatBuf[m.channel]||=[]).push(m); if(m.channel===chatCh) renderChat(); break;
-    case 'gameOver': renderEnd(m); break;
+    case 'gameOver': renderEnd(m); sndWin(); break;
+    case 'newMatch': {
+      histItems=[]; if($('histList'))$('histList').innerHTML=''; show('histBox',false);
+      show('endBox',false); show('dayBox',false); show('resultBox',false); show('promptBox',false); show('sleepBox',false);
+      curPrompt=null; myTeam=null; myVote=null; chatBuf={main:[],wolf:[],dead:[]};
+      const ra=$('rArt'); if(ra){ ra.innerHTML=''; ra.dataset.role=''; } $('announce').textContent='';
+      break;
+    }
     case 'error': $('pErr').textContent=m.message||''; $('joinErr').textContent=m.message||'';
       if(/Phiên không còn/.test(m.message||'')){ localStorage.removeItem('masoi_ws_token'); show('scrJoin',true); }
       else if(curPrompt){ show('promptBox',true); show('sleepBox',false); } break;
