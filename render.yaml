@@ -1,0 +1,15 @@
+# Render Blueprint — deploy server Ma Sói (Node + WebSocket)
+# Cách dùng: Render Dashboard → New → Blueprint → chọn repo này → Apply.
+# (Hoặc tạo Web Service thủ công với build/start command bên dưới.)
+services:
+  - type: web
+    name: masoi-server
+    runtime: node
+    plan: free
+    autoDeploy: true
+    buildCommand: corepack enable && pnpm install
+    startCommand: pnpm start
+    healthCheckPath: /
+    envVars:
+      - key: NODE_VERSION
+        value: "20"

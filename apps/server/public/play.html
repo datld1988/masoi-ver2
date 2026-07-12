@@ -41,6 +41,7 @@
     <div class="row" id="statusRow" style="margin-top:8px">
       <span class="pill" id="phasePill">—</span>
       <span class="muted" id="aliveInfo"></span>
+      <span class="muted" id="phaseTimer" style="color:var(--gold)"></span>
       <button class="ghost" style="margin-left:auto;padding:5px 10px" onclick="leave()">Rời phòng</button>
     </div>
   </div>
@@ -77,7 +78,7 @@
   <div class="card hidden" id="sleepCard"><div class="big">🌙</div><div class="muted" style="text-align:center">Đang ngủ… chờ tới lượt.</div></div>
 
   <div class="card hidden" id="voteCard">
-    <div class="title">🪢 Bỏ phiếu treo</div>
+    <div class="title">🪢 Bỏ phiếu treo <span id="voteTimer" style="color:var(--gold);font-weight:400;font-size:.85rem"></span></div>
     <div class="grid" id="voteGrid"></div>
     <div class="muted" id="voteTally" style="margin-top:8px"></div>
   </div>
@@ -119,6 +120,15 @@ let chatBuf={main:[],wolf:[],dead:[]}, chatCh='main';
 function logLine(s){ const el=$('log'); el.textContent = (el.textContent==='—'?'':el.textContent+'\n') + s; el.scrollTop=el.scrollHeight; }
 function send(o){ if(ws&&ws.readyState===1) ws.send(JSON.stringify(o)); }
 function esc(s){ return String(s||'').replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c])); }
+
+/* ── Đếm ngược dùng chung ── */
+const cds={}; const cdEl={prompt:'promptTimer',vote:'voteTimer',day:'phaseTimer'};
+function countdown(key, deadline, prefix){
+  clearInterval(cds[key]); const el=$(cdEl[key]); if(!el||!deadline) return;
+  const upd=()=>{ const s=Math.max(0,Math.ceil((deadline-Date.now())/1000)); el.textContent=prefix+' '+s+'s'; if(s<=0){ clearInterval(cds[key]); el.textContent=''; } };
+  upd(); cds[key]=setInterval(upd,500);
+}
+function clearCd(key){ clearInterval(cds[key]); const el=$(cdEl[key]); if(el) el.textContent=''; }
 
 function connect(mode){
   const url=$('wsUrl').value.trim(), room=$('room').value.trim(), name=$('name').value.trim()||'Ẩn danh';
@@ -172,15 +182,18 @@ function handle(m){
       $('phasePill').textContent = {lobby:'🚪 Lobby',night:'🌙 Đêm '+m.nightNo,day:'☀️ Ngày '+m.dayNo,ended:'🏁 Kết thúc'}[m.phase]||m.phase;
       $('aliveInfo').textContent = m.aliveCount!=null?`${m.aliveCount} người còn sống`:'';
       show('lobbyCard', m.phase==='lobby');
-      if(m.phase!=='night'){ show('promptCard',false); show('sleepCard',false); clearInterval(tInt); }
-      if(m.phase!=='day') show('voteCard',false);
+      if(m.phase!=='night'){ show('promptCard',false); show('sleepCard',false); clearCd('prompt'); }
+      if(m.phase!=='day'){ show('voteCard',false); clearCd('vote'); clearCd('day'); }
       break;
     case 'chatMsg': (chatBuf[m.channel] ||= []).push({from:m.from,text:m.text}); if(m.channel===chatCh) renderChat(); break;
-    case 'scene': logLine(m.phase==='night'?`🌙 — Đêm ${m.nightNo} —`:`☀️ — Ngày ${m.dayNo} —`); break;
+    case 'scene':
+      logLine(m.phase==='night'?`🌙 — Đêm ${m.nightNo} —`:`☀️ — Ngày ${m.dayNo} —`);
+      if(m.phase==='day' && m.deadline) countdown('day', m.deadline, '🗣️ Mở vote sau'); else clearCd('day');
+      break;
     case 'prompt': curPrompt=m; sel=[]; witchSel={heal:null,poison:null}; show('sleepCard',false); renderPrompt(); break;
-    case 'sleep': curPrompt=null; show('promptCard',false); show('sleepCard',true); clearInterval(tInt); break;
+    case 'sleep': curPrompt=null; show('promptCard',false); show('sleepCard',true); clearCd('prompt'); break;
     case 'privateResult': logLine('🔒 '+m.text); break;
-    case 'morning': curPrompt=null; show('promptCard',false); show('sleepCard',false); logLine('🌅 '+m.lines.join('\n')); break;
+    case 'morning': curPrompt=null; show('promptCard',false); show('sleepCard',false); clearCd('prompt'); logLine('🌅 '+m.lines.join('\n')); break;
     case 'voteOpen': renderVote(m); break;
     case 'voteTally': $('voteTally').textContent = 'Phiếu: '+Object.entries(m.tally).map(([i,c])=>`${nameOf(players[i]&&players[i].id)||('#'+i)}:${c}`).join('  ·  '); break;
     case 'day': show('voteCard',false); logLine('⚖️ '+m.lines.join('\n')); break;
@@ -221,12 +234,10 @@ function renderPlayers(){
 function renderPrompt(){
   const p=curPrompt; show('promptCard',true);
   $('promptTitle').textContent = '🌙 Tới lượt: '+stepVi(p.stepType);
-  if(p.deadline){ clearInterval(tInt); const tick=()=>{ const s=Math.max(0,Math.ceil((p.deadline-Date.now())/1000)); $('promptTimer').textContent='⏱️ còn '+s+'s'; if(s<=0)clearInterval(tInt); }; tick(); tInt=setInterval(tick,500); }
+  countdown('prompt', p.deadline, '⏱️ còn');
   const opts=(p.options||[]).filter(o=>o.id!==myId||p.stepType==='witch'); // ẩn chính mình cho vai nhắm người khác (witch có thể tự cứu)
   if(p.mode==='witch'){
-    const vic = (p.victims&&p.victims.length)
-      ? `🐺 Đêm nay Sói cắn: <b style="color:var(--red)">${p.victims.map(esc).join(', ')}</b>`
-      : 'Đêm nay Sói không cắn ai.';
+    const vic = 'Bạn không biết Sói cắn ai. Chọn cứu / độc, hoặc bỏ qua. Mỗi bình 1 lần cả ván.';
     const heal = p.healUsed
       ? '<div class="muted">💊 Bình cứu đã dùng hết.</div>'
       : `<div class="muted">💊 Cứu (chọn 1 hoặc bỏ):</div><div class="grid">`+
@@ -262,6 +273,7 @@ function sendSkip(){ send({t:'action', action:{skip:true}}); show('promptCard',f
 function renderVote(m){
   show('voteCard',true); voteOptions=m.options||[]; myVote=null; drawVote();
   $('voteTally').textContent='Chưa có phiếu.';
+  clearCd('day'); countdown('vote', m.deadline, '⏱️ Còn');
 }
 function drawVote(){
   $('voteGrid').innerHTML=voteOptions.map(o=>`<button class="ghost ${myVote===o.id?'sel':''}" onclick="castVote('${o.id}')">${esc(o.name)}</button>`).join('');

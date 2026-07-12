@@ -3,7 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "description": "Ma Sói online — monorepo (engine, web app, server)",
+  "packageManager": "pnpm@9.12.0",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
+    "start": "pnpm --filter @masoi/server start",
     "test": "pnpm -r test",
     "test:engine": "pnpm --filter @masoi/engine test"
   }

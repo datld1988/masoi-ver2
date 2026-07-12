@@ -1,16 +1,14 @@
 'use strict';
 /* Room — logic phòng chơi AUTHORITATIVE, không phụ thuộc transport.
    Dùng @masoi/engine. "MC tự động": tự chạy vòng đêm → sáng → vote → treo → kiểm thắng.
+   ĐÊM: MỌI vai (kể cả Phù Thủy) hành động SONG SONG trong một đợt; nộp thứ tự nào cũng được.
+   Phù Thủy "mù" (không cần biết nạn nhân) — chỉ chọn cứu/không, độc/không; engine chặn mỗi bình 1 lần/ván.
    Server tự kiểm soát chat (ai thấy kênh nào) và hỗ trợ reconnect (resume theo id ổn định).
-   Lớp WebSocket (index.js) chỉ bơm message vào/ra qua callback `send`.
-   v0: đêm chạy TUẦN TỰ (từng vai một). Persistence (Redis/Postgres): TODO. */
+   v0. Persistence (Redis/Postgres): TODO. */
 
 import E from '@masoi/engine';
 
-const defaultScheduler = {
-  set: (ms, fn) => setTimeout(fn, ms),
-  clear: (t) => clearTimeout(t),
-};
+const defaultScheduler = { set: (ms, fn) => setTimeout(fn, ms), clear: (t) => clearTimeout(t) };
 const now = () => Date.now();
 const CHATS = ['main', 'wolf', 'dead'];
 
@@ -25,8 +23,7 @@ export class Room {
     this.phase = 'lobby';             // lobby | night | day | ended
     this.state = null;
     this.nd = null;
-    this.queue = [];
-    this.cur = null;                  // bước đêm hiện tại
+    this.cur = null;                  // trạng thái đợt đêm hiện tại
     this.timer = null;
     this.votes = {};
     this.voteOpen = false;
@@ -54,11 +51,7 @@ export class Room {
     this.broadcast({ t: 'lobby', players: this.publicPlayers() });
     return { ok: true };
   }
-  setConnected(id, val) {
-    const i = this.idx(id); if (i < 0) return;
-    this.players[i].connected = val;
-    this.broadcastState();
-  }
+  setConnected(id, val) { const i = this.idx(id); if (i < 0) return; this.players[i].connected = val; this.broadcastState(); }
 
   /* ── BẮT ĐẦU VÁN ── */
   start(counts, rng = Math.random) {
@@ -67,9 +60,7 @@ export class Room {
     try { this.state = this.E.createGame(names, counts, rng); }
     catch (e) { return { ok: false, error: e.message }; }
     const deal = this.E.dealInfo(this.state);
-    this.players.forEach((p, i) => {
-      this.send(p.id, { t: 'yourRole', role: deal[i].role, mates: (deal[i].mates || []).map(m => ({ name: m.name })) });
-    });
+    this.players.forEach((p, i) => this.send(p.id, { t: 'yourRole', role: deal[i].role, mates: (deal[i].mates || []).map(m => ({ name: m.name })) }));
     this.phase = 'night';
     this.broadcastState();
     this.startNight();
@@ -85,7 +76,7 @@ export class Room {
     });
   }
 
-  /* ── ĐÊM: Đợt A (song song mọi vai trừ Phù Thủy) → Đợt Phù Thủy (biết nạn nhân) ── */
+  /* ── ĐÊM: mọi vai hành động SONG SONG (gồm Phù Thủy) ── */
   actorsFor(type) {
     const B = this.E.BITING_WOLF_IDS;
     return this.aliveList()
@@ -93,63 +84,63 @@ export class Room {
       .map(x => x.i);
   }
   promptOptions() { return this.aliveList().map(x => ({ id: this.pid(x.i), name: x.p.name })); }
-
+  promptForActor(type, options, deadline) {
+    if (type === 'witch')
+      return { t: 'prompt', stepType: 'witch', mode: 'witch', options, deadline, healUsed: this.state.flags.witchHealUsed, poisonUsed: this.state.flags.witchPoisonUsed };
+    return { t: 'prompt', stepType: type, mode: 'pick', options, deadline };
+  }
   startNight() {
     this.nd = this.E.newNightData();
-    this.wave = null; this.cur = null;
+    this.cur = null;
     this.broadcast({ t: 'scene', phase: 'night', nightNo: this.state.night });
     const steps = this.E.buildNightSteps(this.state).map(s => s.type);
-    for (const t of steps) {   // Cô Bé Ti Hí: auto-MC quyết định ngay
-      if (t === 'littlegirl') {
-        const caught = Math.random() < (this.settings.lgCaughtChance || 0);
-        this.E.applyNightAction(this.state, this.nd, 'littlegirl', { caught });
-      }
-    }
-    this.startWaveA(steps.filter(t => t !== 'littlegirl' && t !== 'witch'));
+    for (const t of steps)   // Cô Bé Ti Hí: auto-MC quyết định ngay
+      if (t === 'littlegirl') { const caught = Math.random() < (this.settings.lgCaughtChance || 0); this.E.applyNightAction(this.state, this.nd, 'littlegirl', { caught }); }
+    this.startWave(steps.filter(t => t !== 'littlegirl'));
   }
-
-  startWaveA(types) {
-    this.wave = 'A';
+  startWave(types) {
     const cur = { pending: new Set(), stepByActor: {}, wolfActors: new Set(), wolfVotes: {}, wolfResolved: false };
     for (const type of types)
       for (const i of this.actorsFor(type)) { cur.stepByActor[i] = type; cur.pending.add(i); if (type === 'wolf') cur.wolfActors.add(i); }
     this.cur = cur;
-    if (cur.pending.size === 0) return this.afterWaveA();
+    if (cur.pending.size === 0) return this.morning();
     const options = this.promptOptions();
     const deadline = now() + this.settings.actionSec * 1000;
     for (const p of this.players) {
       const i = this.idx(p.id);
-      if (this.state.players[i].alive && cur.pending.has(i))
-        this.send(p.id, { t: 'prompt', stepType: cur.stepByActor[i], mode: 'pick', options, deadline });
+      if (this.state.players[i].alive && cur.pending.has(i)) this.send(p.id, this.promptForActor(cur.stepByActor[i], options, deadline));
       else this.send(p.id, { t: 'sleep' });
     }
-    this.timer = this.sched.set(this.settings.actionSec * 1000, () => this.waveATimeout());
+    this.timer = this.sched.set(this.settings.actionSec * 1000, () => this.waveTimeout());
   }
   handleAction(pid, action) {
     if (this.phase !== 'night' || !this.cur) return;
-    if (this.wave === 'witch') return this.handleWitch(pid, action);
     const i = this.idx(pid);
     if (!this.cur.pending.has(i)) return;
     const type = this.cur.stepByActor[i];
 
-    if (action && action.skip) { if (type === 'wolf') this.cur.wolfVotes[i] = []; return this.doneA(i); }
-    if (type === 'wolf') { this.cur.wolfVotes[i] = (action.targets || []).map(t => this.idx(t)).filter(x => x >= 0); return this.doneA(i); }
+    if (action && action.skip) { if (type === 'wolf') this.cur.wolfVotes[i] = []; return this.done(i); }
+    if (type === 'wolf') { this.cur.wolfVotes[i] = (action.targets || []).map(t => this.idx(t)).filter(x => x >= 0); return this.done(i); }
 
-    const payload = { targets: (action.targets || []).map(t => this.idx(t)) };
+    let payload;
+    if (type === 'witch')
+      payload = { heal: action.heal != null ? this.idx(action.heal) : null, poison: action.poison != null ? this.idx(action.poison) : null };
+    else payload = { targets: (action.targets || []).map(t => this.idx(t)) };
+
     const res = this.E.applyNightAction(this.state, this.nd, type, payload);
     if (!res.ok) { this.send(pid, { t: 'error', message: res.error }); return; }   // giữ pending → cho làm lại
     if (type === 'seer' && res.private)
       this.send(pid, { t: 'privateResult', text: `Soi ${res.private.name}: ${res.private.seen === 'wolf' ? 'LÀ MA SÓI' : 'KHÔNG phải Sói'}` });
-    this.doneA(i);
+    this.done(i);
   }
-  doneA(i) {
+  done(i) {
     this.cur.pending.delete(i);
     this.send(this.pid(i), { t: 'sleep' });
     if (this.cur.wolfActors.has(i) && !this.cur.wolfResolved) {
       const anyPending = [...this.cur.wolfActors].some(w => this.cur.pending.has(w));
       if (!anyPending) { this.cur.wolfResolved = true; this.finishWolf(); }
     }
-    if (this.cur.pending.size === 0) this.afterWaveA();
+    if (this.cur.pending.size === 0) this.morning();
   }
   finishWolf() {
     const tally = {};
@@ -159,61 +150,24 @@ export class Room {
     const targets = ranked.slice(0, maxK).map(r => +r[0]);
     if (targets.length) this.E.applyNightAction(this.state, this.nd, 'wolf', { targets });
   }
-  waveATimeout() {
-    if (!this.cur || this.wave !== 'A') return;
+  waveTimeout() {
+    if (!this.cur || this.phase !== 'night') return;
     if (!this.cur.wolfResolved && this.cur.wolfActors.size) { this.cur.wolfResolved = true; this.finishWolf(); }
     this.cur.pending.clear();
-    this.afterWaveA();
-  }
-  afterWaveA() {
-    this.clearTimer();
-    const wi = this.state.players.findIndex(p => p.alive && p.roleId === 'witch');
-    const canWitch = wi >= 0 && (!this.state.flags.witchHealUsed || !this.state.flags.witchPoisonUsed);
-    if (canWitch) return this.startWitch(wi);
-    return this.morning();
-  }
-  witchVictims() {
-    const idxs = [...(this.nd.wolfTargets || []), this.nd.whitewolfTarget, this.nd.skTarget, this.nd.hunterTarget]
-      .filter(x => x != null && this.state.players[x] && this.state.players[x].alive);
-    return [...new Set(idxs)].map(x => this.state.players[x].name);
-  }
-  witchPromptMsg() {
-    return {
-      t: 'prompt', stepType: 'witch', mode: 'witch',
-      options: this.promptOptions(), victims: this.witchVictims(),
-      healUsed: this.state.flags.witchHealUsed, poisonUsed: this.state.flags.witchPoisonUsed,
-      deadline: now() + this.settings.actionSec * 1000,
-    };
-  }
-  startWitch(wi) {
-    this.wave = 'witch';
-    this.cur = { witch: true, witchIdx: wi, done: false };
-    for (const p of this.players) {
-      const i = this.idx(p.id);
-      if (i === wi) this.send(p.id, this.witchPromptMsg());
-      else this.send(p.id, { t: 'sleep' });
-    }
-    this.timer = this.sched.set(this.settings.actionSec * 1000, () => { this.wave = null; this.morning(); });
-  }
-  handleWitch(pid, action) {
-    const i = this.idx(pid);
-    if (!this.cur || !this.cur.witch || i !== this.cur.witchIdx || this.cur.done) return;
-    if (action && action.skip) { this.cur.done = true; this.wave = null; this.clearTimer(); return this.morning(); }
-    const payload = {
-      heal: action.heal != null ? this.idx(action.heal) : null,
-      poison: action.poison != null ? this.idx(action.poison) : null,
-    };
-    const res = this.E.applyNightAction(this.state, this.nd, 'witch', payload);
-    if (!res.ok) { this.send(pid, { t: 'error', message: res.error }); return; }   // giữ → cho làm lại
-    this.cur.done = true; this.wave = null; this.clearTimer(); this.morning();
+    this.morning();
   }
 
   /* ── SÁNG ── */
   morning() {
     this.clearTimer();
-    this.cur = null; this.wave = null;
+    this.cur = null;
     const r = this.E.resolveMorning(this.state, this.nd);
-    this.broadcast({ t: 'morning', nightNo: this.state.night, lines: r.publicLines });
+    // Thông báo CÔNG KHAI: chỉ tên người chết, KHÔNG lộ vai (vai chỉ lộ khi kết thúc).
+    const deadNames = r.deaths.map(i => this.state.players[i].name);
+    const lines = deadNames.length
+      ? [`💀 ${deadNames.join(', ')} đã chết đêm qua.`]
+      : ['🌙 Đêm qua bình yên – không ai chết. 🕊️'];
+    this.broadcast({ t: 'morning', nightNo: this.state.night, lines });
     this.broadcastState();
     if (r.win) return this.gameOver(r.win);
     this.phase = 'day';
@@ -225,7 +179,7 @@ export class Room {
   startDay() {
     this.votes = {};
     this.voteOpen = false;
-    this.broadcast({ t: 'scene', phase: 'day', dayNo: this.state.day });
+    this.broadcast({ t: 'scene', phase: 'day', dayNo: this.state.day, deadline: now() + this.settings.discussionSec * 1000 });
     this.timer = this.sched.set(this.settings.discussionSec * 1000, () => {
       this.voteOpen = true;
       this.broadcast({ t: 'voteOpen', deadline: now() + this.settings.voteSec * 1000, options: this.promptOptions() });
@@ -246,14 +200,18 @@ export class Room {
     const { top } = this.E.tallyVotes(this.state, this.votes);
     let lines;
     if (top != null) {
-      const r = this.E.resolveHang(this.state, top);
-      lines = r.lines;
+      const name = this.state.players[top].name;
+      const r = this.E.resolveHang(this.state, top);   // vẫn chạy để engine xử lý tác dụng
+      // Thông báo CÔNG KHAI: chỉ tên, KHÔNG lộ vai.
+      if (r.win && r.win.reason === 'joker') lines = [`🪢 ${name} bị treo cổ… và đó đúng là điều hắn mong muốn!`];
+      else if (r.blocked) lines = [`🪢 ${name} bị đưa lên giá treo nhưng thoát chết!`];
+      else lines = [`🪢 ${name} đã bị treo cổ.`];
       if (r.events && r.events.includes('hunterwolfRevenge')) {
         const cand = this.aliveList().filter(x => x.i !== top);
         if (cand.length) {
           const pick = cand[Math.floor(Math.random() * cand.length)].i;
           const rv = this.E.applyRevenge(this.state, pick);
-          lines = lines.concat(rv.lines);
+          lines.push(`💥 ${this.state.players[pick].name} bị kéo chết theo!`);
           if (rv.win) { this.broadcast({ t: 'day', lines }); return this.gameOver(rv.win); }
         }
       }
@@ -271,11 +229,7 @@ export class Room {
 
   /* ── CHAT (server kiểm soát tầm nhìn) ── */
   canChat(i, channel) {
-    if (channel === 'main') {
-      if (this.phase === 'lobby' || this.phase === 'ended') return true;
-      if (this.phase === 'night') return false;
-      return this.state.players[i].alive;             // ban ngày: người sống
-    }
+    if (channel === 'main') { if (this.phase === 'lobby' || this.phase === 'ended') return true; if (this.phase === 'night') return false; return this.state.players[i].alive; }
     if (channel === 'wolf') return !!this.state && this.phase === 'night' && this.state.players[i].alive && this.isWolf(i);
     if (channel === 'dead') return !!this.state && !this.state.players[i].alive;
     return false;
@@ -283,10 +237,8 @@ export class Room {
   chatRecipients(channel) {
     if (channel === 'main') return this.players.map(p => p.id);
     if (!this.state) return [];
-    if (channel === 'wolf')
-      return this.state.players.map((p, i) => ({ p, i })).filter(x => x.p.alive && this.isWolf(x.i)).map(x => this.pid(x.i));
-    if (channel === 'dead')
-      return this.state.players.map((p, i) => ({ p, i })).filter(x => !x.p.alive).map(x => this.pid(x.i));
+    if (channel === 'wolf') return this.state.players.map((p, i) => ({ p, i })).filter(x => x.p.alive && this.isWolf(x.i)).map(x => this.pid(x.i));
+    if (channel === 'dead') return this.state.players.map((p, i) => ({ p, i })).filter(x => !x.p.alive).map(x => this.pid(x.i));
     return [];
   }
   handleChat(pid, channel, text) {
@@ -309,20 +261,15 @@ export class Room {
     if (!this.state) { this.send(id, { t: 'lobby', players: this.publicPlayers() }); return; }
     const deal = this.E.dealInfo(this.state);
     this.send(id, { t: 'yourRole', role: deal[i].role, mates: (deal[i].mates || []).map(m => ({ name: m.name })) });
-    if (this.phase === 'night' && this.cur) {
-      if (this.wave === 'witch') {
-        if (this.cur.witch && i === this.cur.witchIdx && !this.cur.done) this.send(id, this.witchPromptMsg());
-        else this.send(id, { t: 'sleep' });
-      } else if (this.cur.pending && this.cur.pending.has(i)) {
-        this.send(id, { t: 'prompt', stepType: this.cur.stepByActor[i], mode: 'pick', options: this.promptOptions(), deadline: now() + this.settings.actionSec * 1000 });
-      } else this.send(id, { t: 'sleep' });
+    if (this.phase === 'night' && this.cur && this.cur.pending) {
+      if (this.cur.pending.has(i)) this.send(id, this.promptForActor(this.cur.stepByActor[i], this.promptOptions(), now() + this.settings.actionSec * 1000));
+      else this.send(id, { t: 'sleep' });
     } else if (this.phase === 'day' && this.voteOpen && this.state.players[i].alive) {
       this.send(id, { t: 'voteOpen', deadline: now() + this.settings.voteSec * 1000, options: this.promptOptions() });
     }
-    for (const ch of CHATS) {
+    for (const ch of CHATS)
       if (this.chatRecipients(ch).includes(id))
         for (const m of this.chatLog[ch]) this.send(id, { t: 'chatMsg', channel: ch, from: m.from, text: m.text });
-    }
   }
 
   /* ── KẾT THÚC ── */
@@ -330,10 +277,31 @@ export class Room {
     this.phase = 'ended';
     this.voteOpen = false;
     this.clearTimer();
-    const reveal = this.state.players.map((p) => {
-      const r = this.E.roleOf(p.roleId);
-      return { name: p.name, role: r.name, alive: p.alive };
-    });
+    const reveal = this.state.players.map((p) => { const r = this.E.roleOf(p.roleId); return { name: p.name, role: r.name, alive: p.alive }; });
     this.broadcast({ t: 'gameOver', winner: win.winner, desc: win.desc, reveal });
+  }
+
+  /* ── BỀN BỈ: snapshot / khôi phục (restart không mất ván) ── */
+  serialize() {
+    const c = this.cur;
+    return {
+      id: this.id, phase: this.phase, settings: this.settings,
+      players: this.players.map(p => ({ id: p.id, name: p.name, connected: false })),
+      state: this.state, nd: this.nd, votes: this.votes, voteOpen: this.voteOpen, chatLog: this.chatLog,
+      cur: c && c.pending ? { pending: [...c.pending], stepByActor: c.stepByActor || {}, wolfActors: [...(c.wolfActors || [])], wolfVotes: c.wolfVotes || {}, wolfResolved: !!c.wolfResolved } : null,
+    };
+  }
+  static restore(snap, send, scheduler) {
+    const r = new Room({ id: snap.id, send, scheduler, settings: snap.settings });
+    r.phase = snap.phase; r.players = snap.players || []; r.state = snap.state || null; r.nd = snap.nd || null;
+    r.votes = snap.votes || {}; r.voteOpen = !!snap.voteOpen; r.chatLog = snap.chatLog || { main: [], wolf: [], dead: [] };
+    if (snap.cur) r.cur = { pending: new Set(snap.cur.pending), stepByActor: snap.cur.stepByActor || {}, wolfActors: new Set(snap.cur.wolfActors), wolfVotes: snap.cur.wolfVotes || {}, wolfResolved: !!snap.cur.wolfResolved };
+    r.rearm();
+    return r;
+  }
+  rearm() {   // dựng lại timer cho giai đoạn hiện tại sau khi khôi phục
+    this.clearTimer();
+    if (this.phase === 'night' && this.cur && this.cur.pending) this.timer = this.sched.set(this.settings.actionSec * 1000, () => this.waveTimeout());
+    else if (this.phase === 'day') { if (this.voteOpen) this.timer = this.sched.set(this.settings.voteSec * 1000, () => this.closeVote()); else this.startDay(); }
   }
 }

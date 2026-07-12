@@ -18,6 +18,7 @@
 import { WebSocketServer } from 'ws';
 import { createServer } from 'http';
 import { readFile } from 'fs/promises';
+import { writeFileSync, readFileSync, existsSync, mkdirSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { randomUUID } from 'crypto';
@@ -28,27 +29,53 @@ const PORT = process.env.PORT || 8080;
 const rooms = new Map();          // code -> Room
 const sockets = new Map();        // playerId(token) -> ws
 
+function sendTo(pid, msg) { const ws = sockets.get(pid); if (ws && ws.readyState === 1) ws.send(JSON.stringify(msg)); }
 function getRoom(code) {
-  if (!rooms.has(code)) {
-    rooms.set(code, new Room({
-      id: code,
-      send: (pid, msg) => {
-        const ws = sockets.get(pid);
-        if (ws && ws.readyState === 1) ws.send(JSON.stringify(msg));
-      },
-    }));
-  }
+  if (!rooms.has(code)) rooms.set(code, new Room({ id: code, send: sendTo }));
   return rooms.get(code);
 }
 const newId = () => (globalThis.crypto?.randomUUID ? crypto.randomUUID() : randomUUID());
 
-const httpServer = createServer(async (req, res) => {
+/* ── Bền bỉ: snapshot phòng ra file, nạp lại khi khởi động ── */
+const DATA_DIR = join(__dirname, '..', 'data');
+const SNAP = join(DATA_DIR, 'rooms.json');
+function saveRooms() {
   try {
-    const html = await readFile(join(__dirname, '..', 'public', 'play.html'));
-    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-    res.end(html);
+    if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
+    const all = {};
+    for (const [code, room] of rooms) if (room.phase !== 'ended') all[code] = room.serialize();
+    writeFileSync(SNAP, JSON.stringify(all));
+  } catch (e) { console.error('Lưu snapshot lỗi:', e.message); }
+}
+let saveT = null;
+function scheduleSave() { clearTimeout(saveT); saveT = setTimeout(saveRooms, 800); }
+function loadRooms() {
+  try {
+    if (!existsSync(SNAP)) return;
+    const all = JSON.parse(readFileSync(SNAP, 'utf8'));
+    let n = 0;
+    for (const code of Object.keys(all)) { rooms.set(code, Room.restore(all[code], sendTo)); n++; }
+    if (n) console.log(`Khôi phục ${n} phòng từ snapshot`);
+  } catch (e) { console.error('Nạp snapshot lỗi:', e.message); }
+}
+
+const STATIC = {
+  '/': 'play.html',
+  '/play.html': 'play.html',
+  '/player-ws.html': 'player-ws.html',
+  '/role-art.js': 'role-art.js',
+};
+const httpServer = createServer(async (req, res) => {
+  const url = (req.url || '/').split('?')[0];
+  const name = STATIC[url];
+  if (!name) { res.writeHead(404); res.end('not found'); return; }
+  try {
+    const data = await readFile(join(__dirname, '..', 'public', name));
+    const ct = name.endsWith('.js') ? 'application/javascript' : 'text/html';
+    res.writeHead(200, { 'Content-Type': ct + '; charset=utf-8' });
+    res.end(data);
   } catch {
-    res.writeHead(404); res.end('play.html không tìm thấy');
+    res.writeHead(404); res.end(name + ' không tìm thấy');
   }
 });
 
@@ -66,6 +93,7 @@ wss.on('connection', (ws) => {
       sockets.set(pid, ws);
       ws.send(JSON.stringify({ t: 'welcome', id: pid, token: pid }));
       room.join(pid, m.name);
+      scheduleSave();
       return;
     }
     if (m.t === 'resume') {
@@ -91,6 +119,7 @@ wss.on('connection', (ws) => {
       case 'chat':   room.handleChat(pid, m.channel, m.text); break;
       default: break;
     }
+    scheduleSave();
   });
 
   ws.on('close', () => {
@@ -102,6 +131,8 @@ wss.on('connection', (ws) => {
   });
 });
 
+loadRooms();   // khôi phục phòng đang chơi (nếu server vừa restart)
 httpServer.listen(PORT, () => {
   console.log(`Ma Sói server chạy: http://localhost:${PORT}  (client thử)  ·  ws://localhost:${PORT}`);
 });
+for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { saveRooms(); process.exit(0); });

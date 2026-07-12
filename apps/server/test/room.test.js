@@ -92,19 +92,23 @@ describe('Room auto-MC', () => {
     expect(last(inbox.p2, 'state')).toBeTruthy();
   });
 
-  it('đêm song song: đợt A nhận hành động thứ tự bất kỳ; Phù Thủy chạy sau & biết nạn nhân', () => {
+  it('đêm song song: mọi vai (kể cả Phù Thủy) hành động cùng đợt, thứ tự bất kỳ', () => {
     const { room, inbox } = setup();
     // p0 villager, p1 wolf, p2 seer, p3 witch, p4 bodyguard
     ['N0', 'N1', 'N2', 'N3', 'N4'].forEach((n, i) => room.join('p' + i, n));
     room.start({ villager: 1, wolf: 1, seer: 1, witch: 1, bodyguard: 1 }, noShuffle);
-    room.handleAction('p2', { targets: ['p1'] });   // seer nộp TRƯỚC sói (song song)
-    expect(last(inbox.p2, 'privateResult').text).toContain('LÀ MA SÓI');
-    room.handleAction('p4', { skip: true });        // bảo vệ bỏ
-    room.handleAction('p1', { targets: ['p0'] });   // sói cắn p0 → xong đợt A → sang Phù Thủy
+    // Phù Thủy được prompt NGAY (song song), mode witch, KHÔNG kèm nạn nhân
     const wp = last(inbox.p3, 'prompt');
     expect(wp.mode).toBe('witch');
-    expect(wp.victims).toContain('N0');             // Phù Thủy ĐƯỢC biết nạn nhân
-    room.handleAction('p3', { heal: 'p0' });        // cứu đúng nạn nhân
-    expect(room.state.players[0].alive).toBe(true);
+    expect(wp.victims).toBeUndefined();
+    // nộp thứ tự bất kỳ: phù thuỷ & tiên tri trước, sói sau
+    room.handleAction('p3', { heal: 'p0' });        // phù thuỷ cứu p0 (mù)
+    room.handleAction('p2', { targets: ['p1'] });   // seer soi p1 (sói)
+    expect(last(inbox.p2, 'privateResult').text).toContain('LÀ MA SÓI');
+    room.handleAction('p4', { skip: true });
+    room.handleAction('p1', { targets: ['p0'] });   // sói cắn p0 (người cuối) → sáng
+    expect(room.state.players[0].alive).toBe(true); // p0 được phù thuỷ cứu → sống
+    expect(room.phase).toBe('day');
+    expect(room.state.flags.witchHealUsed).toBe(true); // đã dùng bình cứu (1 lần/ván)
   });
 });
