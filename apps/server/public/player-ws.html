@@ -90,6 +90,10 @@ input[type=text],input[type=number]{width:100%;padding:11px;border-radius:10px;b
     <button class="btn btn-primary" onclick="doJoin()">Vào phòng</button>
     <div class="err" id="joinErr"></div>
     <div class="muted" id="conn" style="margin-top:6px"></div>
+    <div class="row" style="margin-top:8px">
+      <button class="btn btn-ghost" onclick="listRooms()" style="width:auto;margin:0;padding:8px 12px">🔄 Phòng đang mở</button>
+    </div>
+    <div id="roomList" style="margin-top:6px"></div>
   </section>
 
   <section id="scrLobby" class="card hidden">
@@ -102,6 +106,16 @@ input[type=text],input[type=number]{width:100%;padding:11px;border-radius:10px;b
       🧙<input class="num" id="c_witch" type="number" min="0" value="0">
       🛡️<input class="num" id="c_bodyguard" type="number" min="0" value="0">
       🧑 Dân: <b id="villagerCount">–</b>
+    </div>
+    <div class="muted" style="margin-top:10px">⏱️ Thời gian (giây):</div>
+    <div class="row" style="margin-top:4px">
+      🌙 lượt đêm <input class="num" id="t_action" type="number" min="15" max="300" value="60">
+      🗣️ thảo luận <input class="num" id="t_disc" type="number" min="0" max="300" value="45">
+      🗳️ vote <input class="num" id="t_vote" type="number" min="10" max="180" value="30">
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button class="btn btn-ghost" id="readyBtn" onclick="toggleReady()" style="width:auto;margin:0;padding:9px 14px">☐ Sẵn sàng</button>
+      <span class="muted" id="readyCount"></span>
     </div>
     <button class="btn btn-danger" onclick="doStart()">🚀 Bắt đầu (server tự dẫn ván)</button>
   </section>
@@ -193,7 +207,7 @@ const show=(id,on)=>$(id).classList.toggle('hidden',!on);
 const TEAM_VI={wolf:'🐺 Phe Sói',village:'🏡 Phe Dân',third:'🎭 Phe Thứ Ba'};
 const esc=s=>String(s||'').replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
 
-let ws=null, myId=null, myTeam=null, myAlive=true, players=[], phase='lobby', meta={};
+let ws=null, myId=null, myTeam=null, myAlive=true, players=[], phase='lobby', meta={}, myReady=false;
 let curPrompt=null, sel=[], witchSel={heal:null,poison:null}, myVote=null, voteOptions=[];
 let chatBuf={main:[],wolf:[],dead:[]}, chatCh='main';
 const RING_C=2*Math.PI*36; let promptTotal=0;
@@ -212,6 +226,7 @@ function connect(mode){
   const room=$('inRoom').value.trim().toUpperCase(), name=$('inName').value.trim()||'Ẩn danh';
   ws=new WebSocket(url); $('conn').textContent='Đang kết nối…';
   ws.onopen=()=>{ $('conn').textContent='Đã kết nối ✓';
+    if(mode==='list'){ send({t:'listRooms'}); return; }
     if(mode==='resume') send({t:'resume',room,token:localStorage.getItem('masoi_ws_token')});
     else send({t:'join',room,name});
     localStorage.setItem('masoi_ws_room',room); localStorage.setItem('masoi_ws_name',name); };
@@ -221,6 +236,13 @@ function connect(mode){
 }
 function send(o){ if(ws&&ws.readyState===1) ws.send(JSON.stringify(o)); }
 function doJoin(){ const r=$('inRoom').value.trim(); if(!r){$('joinErr').textContent='Nhập mã phòng!';return;} connect('join'); }
+function listRooms(){ if(ws&&ws.readyState===1) send({t:'listRooms'}); else connect('list'); }
+function renderRooms(list){ const el=$('roomList'); if(!el) return;
+  if(!list||!list.length){ el.innerHTML='<span class="muted">Chưa có phòng nào đang mở. Nhập mã bất kỳ để tạo mới.</span>'; return; }
+  el.innerHTML=list.map(r=>`<button class="btn btn-ghost" style="width:100%;margin:4px 0;padding:9px" onclick="joinRoomCode('${esc(r.code)}')">🚪 Phòng ${esc(r.code)} — ${r.count} người</button>`).join(''); }
+function joinRoomCode(code){ $('inRoom').value=code; const name=$('inName').value.trim()||'Ẩn danh';
+  if(ws&&ws.readyState===1){ localStorage.setItem('masoi_ws_room',code); localStorage.setItem('masoi_ws_name',name); send({t:'join',room:code,name}); }
+  else connect('join'); }
 function leave(){ try{ws&&ws.close();}catch(e){} localStorage.removeItem('masoi_ws_token'); location.reload(); }
 window.addEventListener('load',()=>{
   $('wsUrl').value=defUrl();
@@ -254,7 +276,8 @@ function clearCd(key){ clearInterval(cds[key]); const el=$(cdEl[key]); if(el) el
 function handle(m){
   switch(m.t){
     case 'welcome': myId=m.id; if(m.token) localStorage.setItem('masoi_ws_token',m.token); break;
-    case 'lobby': players=m.players; show('scrJoin',false); show('scrLobby',true); renderRoster('lobbyList'); updVillager(); break;
+    case 'rooms': renderRooms(m.list); break;
+    case 'lobby': players=m.players; show('scrJoin',false); show('scrLobby',true); renderRoster('lobbyList'); updVillager(); renderReady(); break;
     case 'yourRole': myTeam=m.role.team; renderRole(m); break;
     case 'state': onState(m); break;
     case 'scene':
@@ -309,7 +332,7 @@ function renderRoster(elId){
     const col=alive?avaColor(p.name):'#4b5563';
     const dot=alive?`<span class="pdot" style="background:${online?'var(--green)':'#6b7280'}"></span>`:`<span class="pdot" style="background:#450a0a">💀</span>`;
     return `<div class="ptile${alive?'':' dead'}${me?' me':''}"><div class="ava" style="background:${col}">${esc(avaInit(p.name))}${dot}</div>
-      <div class="pname">${me?'⭐ ':''}${esc(p.name)}</div><div class="psub">${alive?('Ghế '+((p.seat||0)+1)):'Đã chết'}</div></div>`;
+      <div class="pname">${me?'⭐ ':''}${esc(p.name)}${p.ready===true?' ✅':''}</div><div class="psub">${p.ready===false?'⏳ chưa sẵn sàng':(alive?('Ghế '+((p.seat||0)+1)):'Đã chết')}</div></div>`;
   }).join('');
 }
 function renderRole(m){
@@ -402,8 +425,15 @@ function insEmo(e){ const i=$('chatIn'); if(i.disabled) return; i.value=(i.value
 
 /* ── Lobby helpers ── */
 function updVillager(){ const total=players.length, others=['wolf','seer','witch','bodyguard'].reduce((s,k)=>s+(+$('c_'+k).value||0),0); $('villagerCount').textContent=Math.max(0,total-others); }
+function renderReady(){ if(!$('readyCount')) return;
+  const rc=players.filter(p=>p.ready).length; $('readyCount').textContent=`${rc}/${players.length} sẵn sàng`;
+  const me=players.find(p=>p.id===myId); myReady=!!(me&&me.ready);
+  const b=$('readyBtn'); b.textContent=myReady?'✅ Đã sẵn sàng (bấm để hủy)':'☐ Sẵn sàng'; b.classList.toggle('btn-primary',myReady); }
+function toggleReady(){ send({t:'ready',value:!myReady}); }
 ['c_wolf','c_seer','c_witch','c_bodyguard'].forEach(id=>document.addEventListener('input',e=>{ if(e.target.id===id) updVillager(); }));
-function doStart(){ const counts={}; ['wolf','seer','witch','bodyguard'].forEach(k=>{const v=+$('c_'+k).value||0; if(v>0)counts[k]=v;}); const vil=players.length-Object.values(counts).reduce((a,b)=>a+b,0); if(vil>0)counts.villager=vil; send({t:'start',counts}); }
+function doStart(){ const counts={}; ['wolf','seer','witch','bodyguard'].forEach(k=>{const v=+$('c_'+k).value||0; if(v>0)counts[k]=v;}); const vil=players.length-Object.values(counts).reduce((a,b)=>a+b,0); if(vil>0)counts.villager=vil;
+  const settings={ actionSec:+$('t_action').value||60, discussionSec:+$('t_disc').value||45, voteSec:+$('t_vote').value||30 };
+  send({t:'start',counts,settings}); }
 
 /* ── Overlay chuyển cảnh + hiệu ứng kết thúc ── */
 function sceneOverlay(icon,txt,type){ const ov=$('sceneOv'); $('ovIcon').textContent=icon; $('ovTxt').textContent=txt;

@@ -40,7 +40,12 @@ export class Room {
   publicPlayers() {
     return this.state
       ? this.state.players.map((p, i) => ({ id: this.pid(i), name: p.name, seat: i, alive: p.alive, connected: this.players[i].connected }))
-      : this.players.map((p, i) => ({ id: p.id, name: p.name, seat: i, alive: true, connected: p.connected }));
+      : this.players.map((p, i) => ({ id: p.id, name: p.name, seat: i, alive: true, connected: p.connected, ready: !!p.ready }));
+  }
+  setReady(id, val) {
+    const i = this.idx(id); if (i < 0 || this.phase !== 'lobby') return;
+    this.players[i].ready = !!val;
+    this.broadcast({ t: 'lobby', players: this.publicPlayers() });
   }
   clearTimer() { if (this.timer) { this.sched.clear(this.timer); this.timer = null; } }
 
@@ -54,8 +59,12 @@ export class Room {
   setConnected(id, val) { const i = this.idx(id); if (i < 0) return; this.players[i].connected = val; this.broadcastState(); }
 
   /* ── BẮT ĐẦU VÁN ── */
-  start(counts, rng = Math.random) {
+  start(counts, rng = Math.random, opts = {}) {
     if (this.phase !== 'lobby') return { ok: false, error: 'Đã bắt đầu' };
+    const clamp = (v, lo, hi, dflt) => { const n = Math.round(+v); return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : dflt; };
+    if (opts.actionSec != null) this.settings.actionSec = clamp(opts.actionSec, 15, 300, this.settings.actionSec);
+    if (opts.discussionSec != null) this.settings.discussionSec = clamp(opts.discussionSec, 0, 300, this.settings.discussionSec);
+    if (opts.voteSec != null) this.settings.voteSec = clamp(opts.voteSec, 10, 180, this.settings.voteSec);
     const names = this.players.map(p => p.name);
     try { this.state = this.E.createGame(names, counts, rng); }
     catch (e) { return { ok: false, error: e.message }; }
@@ -288,6 +297,7 @@ export class Room {
     this.state = null; this.nd = null; this.cur = null;
     this.votes = {}; this.voteOpen = false;
     this.chatLog = { main: [], wolf: [], dead: [] };
+    this.players.forEach(p => { p.ready = false; });
     this.phase = 'lobby';
     this.broadcast({ t: 'newMatch' });
     this.broadcast({ t: 'lobby', players: this.publicPlayers() });

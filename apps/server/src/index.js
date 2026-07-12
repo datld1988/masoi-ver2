@@ -110,14 +110,22 @@ wss.on('connection', (ws) => {
       return;
     }
 
+    if (m.t === 'listRooms') {
+      const list = [];
+      for (const [code, room] of rooms) if (room.phase === 'lobby') list.push({ code, count: room.players.length });
+      ws.send(JSON.stringify({ t: 'rooms', list }));
+      return;
+    }
+
     const room = ws._room, pid = ws._pid;
     if (!room || !pid) return;
     switch (m.t) {
-      case 'start': { const rs = room.start(m.counts || {}); if (!rs.ok) ws.send(JSON.stringify({ t: 'error', message: rs.error })); break; }
+      case 'start': { const rs = room.start(m.counts || {}, undefined, m.settings || {}); if (!rs.ok) ws.send(JSON.stringify({ t: 'error', message: rs.error })); break; }
       case 'action': room.handleAction(pid, m.action || {}); break;
       case 'vote':   room.handleVote(pid, m.target); break;
       case 'chat':   room.handleChat(pid, m.channel, m.text); break;
       case 'newMatch': room.newMatch(); break;
+      case 'ready': room.setReady(pid, m.value); break;
       default: break;
     }
     scheduleSave();
