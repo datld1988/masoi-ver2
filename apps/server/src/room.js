@@ -32,6 +32,7 @@ export class Room {
     this.ownerId = null;              // chủ phòng = người tạo phòng
     this.password = '';               // mật khẩu phòng (server giữ, không gửi client)
     this.history = [];                // lịch sử CHI TIẾT (có vai) — chỉ gửi khi kết thúc
+    this._lastActivity = Date.now();  // dùng để sweep phòng không hoạt động
   }
 
   /* ── tiện ích ── */
@@ -46,7 +47,8 @@ export class Room {
       ? this.state.players.map((p, i) => ({ id: this.pid(i), name: p.name, seat: i, alive: p.alive, connected: (this.players[i] || {}).connected }))
       : this.players.map((p, i) => ({ id: p.id, name: p.name, seat: i, alive: true, connected: p.connected, ready: !!p.ready }));
   }
-  broadcastLobby() { this.broadcast({ t: 'lobby', players: this.publicPlayers(), ownerId: this.ownerId }); }
+  touch() { this._lastActivity = Date.now(); }
+  broadcastLobby() { this.touch(); this.broadcast({ t: 'lobby', players: this.publicPlayers(), ownerId: this.ownerId }); }
   setReady(id, val) {
     const i = this.idx(id); if (i < 0 || this.phase !== 'lobby') return;
     this.players[i].ready = !!val;
@@ -102,6 +104,7 @@ export class Room {
 
   /* ── BẮT ĐẦU VÁN ── */
   start(counts, rng = Math.random, opts = {}, requesterId = null) {
+    this.touch();
     if (this.phase !== 'lobby') return { ok: false, error: 'Đã bắt đầu' };
     if (requesterId != null && requesterId !== this.ownerId) return { ok: false, error: 'Chỉ chủ phòng mới được bắt đầu' };
     const notReady = this.players.filter(p => p.id !== this.ownerId && !p.ready).length;
@@ -174,6 +177,7 @@ export class Room {
     this.timer = this.sched.set(this.settings.actionSec * 1000, () => this.waveTimeout());
   }
   handleAction(pid, action) {
+    this.touch();
     if (this.phase !== 'night' || !this.cur) return;
     const i = this.idx(pid);
     if (!this.cur.pending.has(i)) return;
@@ -272,6 +276,7 @@ export class Room {
     });
   }
   handleVote(pid, targetPid) {
+    this.touch();
     if (this.phase !== 'day' || !this.voteOpen) return;
     const vi = this.idx(pid), ti = this.idx(targetPid);
     if (vi < 0 || ti < 0 || !this.state.players[vi].alive) return;
@@ -336,6 +341,7 @@ export class Room {
     return [];
   }
   handleChat(pid, channel, text) {
+    this.touch();
     if (!CHATS.includes(channel)) return;
     text = String(text || '').slice(0, 300).trim();
     if (!text) return;

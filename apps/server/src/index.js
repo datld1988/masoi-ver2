@@ -58,6 +58,11 @@ function checkRate(ip, max = 30, windowMs = 60_000) {
   ipCount.set(ip, e);
   return e.count <= max;
 }
+// Dọn ipCount mỗi 10 phút để tránh memory leak
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, e] of ipCount) if (now > e.resetAt) ipCount.delete(ip);
+}, 10 * 60_000).unref();
 
 const ROLE_CATALOG = E.ROLES.map(r => ({ id: r.id, name: r.name, icon: r.icon, team: r.team }));
 
@@ -102,7 +107,8 @@ const userDB = new Map();
 const BANS_FILE   = join(DATA_DIR, 'bans.json');
 const REPORTS_FILE = join(DATA_DIR, 'reports.json');
 const bannedUIDs = new Set();
-const reportLog  = [];               // tối đa 1000 mục, giữ trong bộ nhớ + lưu file
+const reportLog  = [];               // giới hạn 1000 mục cả trong RAM lẫn file
+const REPORT_MAX = 1000;
 
 function loadUsers() {
   try {
@@ -268,25 +274,26 @@ wss.on('connection', (ws, req) => {
 
     /* ── Xử lý xác thực Firebase và lấy pid + tên ── */
     async function resolveIdentity(preferredName) {
+      const safeName = n => String(n || '').trim().slice(0, 24) || 'Ẩn danh';
       if (m.idToken) {
         if (!adminAuth) {
           // Firebase Admin chưa cấu hình → chơi như khách, không lưu stats
-          return { pid: newId(), name: preferredName || 'Ẩn danh' };
+          return { pid: newId(), name: safeName(preferredName) };
         }
         const decoded = await verifyFirebaseToken(m.idToken);
         if (!decoded) { sendErr('Token đăng nhập không hợp lệ, hãy đăng nhập lại.'); return null; }
         const uid = decoded.uid;
         if (bannedUIDs.has(uid)) { sendErr('Tài khoản bị cấm. Liên hệ quản trị viên nếu có nhầm lẫn.'); return null; }
-        const name = decoded.name || preferredName || 'Ẩn danh';
+        const name = safeName(decoded.name || preferredName);
         const u = upsertUser(uid, { displayName: decoded.name, photoURL: decoded.picture });
         ws.send(JSON.stringify({ t: 'userProfile', uid: u.uid, displayName: u.displayName, gamesPlayed: u.gamesPlayed, wins: u.wins || 0, elo: u.elo || ELO_DEFAULT, winsByTeam: u.winsByTeam }));
         return { pid: uid, name };
       }
-      return { pid: newId(), name: preferredName || 'Ẩn danh' };
+      return { pid: newId(), name: safeName(preferredName) };
     }
 
     if (m.t === 'create') {
-      const code = (m.room || '').trim();
+      const code = (m.room || '').trim().slice(0, 32);
       if (!code) return sendErr('Nhập tên phòng.');
       if (rooms.has(code) && rooms.get(code).players.length) return sendErr('Phòng đã tồn tại — chọn tên khác hoặc bấm Vào phòng.');
       const identity = await resolveIdentity(m.name);
@@ -366,6 +373,7 @@ wss.on('connection', (ws, req) => {
         if (target && m.targetId !== pid) {
           const reporter = room.players.find(p => p.id === pid);
           reportLog.push({ time: Date.now(), reporterUid: pid, reporterName: reporter?.name || '?', targetUid: m.targetId, targetName: target.name, reason: (m.reason || '').slice(0, 200), room: room.id });
+          if (reportLog.length > REPORT_MAX) reportLog.splice(0, reportLog.length - REPORT_MAX);
           if (reportLog.length % 20 === 0) saveReports();
           ws.send(JSON.stringify({ t: 'toast', message: '✅ Đã ghi nhận báo cáo. Cảm ơn!' }));
         }
@@ -396,6 +404,17 @@ loadRooms();
 loadUsers();
 loadBans();
 loadReports();
+
+// Dọn phòng "chết": lobby trống kết nối > 30 phút, hoặc ván ended > 10 phút
+setInterval(() => {
+  const now = Date.now();
+  for (const [code, room] of rooms) {
+    const allDisc = room.players.length > 0 && room.players.every(p => !p.connected);
+    const stale = room._lastActivity && (now - room._lastActivity > (room.phase === 'lobby' ? 30 * 60_000 : 10 * 60_000));
+    if (allDisc && stale) { rooms.delete(code); console.log(`[sweep] xóa phòng ${code} (không hoạt động)`); }
+  }
+}, 5 * 60_000).unref();
+
 httpServer.listen(PORT, () => {
   console.log(`Ma Sói server chạy: http://localhost:${PORT}  ·  ws://localhost:${PORT}`);
   if (ADMIN_KEY) console.log(`Admin: GET /admin/reports?key=... | /admin/ban?uid=...&key=... | /admin/users?key=...`);
