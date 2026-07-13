@@ -67,11 +67,65 @@ node apps/server/test/run.mjs             # ^ chạy KHÔNG cần vitest (Node t
 
 Chơi: mở `player-ws.html`, tạo/vào phòng (tên + mật khẩu), chủ phòng đặt số vai → Bắt đầu. Server tự dẫn ván.
 
+## Phase 2 — Tài khoản, matchmaking, xếp hạng (đã hoàn thành)
+
+Commit: `d44f9a6` — "Phase 2: Firebase Auth, Quick Match, Invite Link, ELO, Ban/Report"
+
+### Đã làm
+
+| Tính năng | Vị trí |
+|---|---|
+| Google Sign-in (Firebase compat SDK v10) + chơi khách | `player-ws.html` (scrAuth section) |
+| Firebase Admin tùy chọn: graceful fallback khi chưa cấu hình | `index.js` — `resolveIdentity()` |
+| Hồ sơ người dùng: elo (K=32), gamesPlayed, wins, winsByTeam | `index.js` — `upsertUser()`, `recordResult()` |
+| Quick Match: tìm phòng public tốt nhất hoặc tạo mới | `index.js` — case `quickMatch` |
+| Invite link: copy URL `?room=CODE`, auto-điền khi load | `player-ws.html` — `copyInviteLink()` |
+| Bảng xếp hạng `/leaderboard` (public, top 20 theo ELO) | `index.js` — HTTP `/leaderboard` |
+| Ban/Report: report trong trận, admin ban UID qua HTTP | `index.js` — `bannedUIDs`, `reportLog` |
+| Admin endpoints: `/admin/reports|ban|unban|users` (cần `ADMIN_KEY`) | `index.js` |
+| Rate limiting: 30 kết nối/phút/IP | `index.js` — `checkRate()` |
+| Persistence: `data/users.json`, `data/bans.json`, `data/reports.json` | `index.js` — load/save* |
+| Toast notifications thay alert | `player-ws.html` — `showToast()`, `#toast` CSS |
+| Report ⚑ button trên tile người chơi (trong trận, không self) | `player-ws.html` — `reportPlayer()` |
+
+### Env vars cần thiết
+
+| Var | Môi trường | Giá trị |
+|---|---|---|
+| `FIREBASE_KEY_FILE` | local dev (`.env.local`) | đường dẫn tới file JSON service account |
+| `FIREBASE_SERVICE_ACCOUNT` | Render/prod | toàn bộ nội dung JSON service account (paste vào dashboard) |
+| `ADMIN_KEY` | cả hai | chuỗi bí mật để gọi `/admin/*` |
+
+Local dev: `pnpm run start:local` (dùng `--env-file=.env.local`). File `.env.local` gitignored.
+
+### Chưa làm trong Phase 2
+
+- Đăng nhập Apple / email / phone (chỉ có Google)
+- Lịch sử trận per-user (xem lại ván cũ của mình)
+- Chống multi-account nâng cao (hiện chỉ lưu UID Firebase)
+
+### Gotchas Firebase
+
+- `resolveIdentity()` trong `index.js`: khi `adminAuth = null` (chưa cấu hình FIREBASE_SERVICE_ACCOUNT), server **bỏ qua** idToken và cấp guest ID — KHÔNG được reject → vẫn chơi được mà không có stats.
+- `onGameOver` callback trong `Room` constructor: gọi `recordResult` rồi `scheduleSaveUsers()`. Room truyền `reveal[i].team` để tính ELO theo phe.
+- Firebase compat SDK (v10.14.1, CDN) — KHÔNG dùng modular SDK để tránh bundle phức tạp.
+
+---
+
 ## Deploy
 
 - **Bản WS → Render** (KHÔNG dùng Firebase — Firebase chỉ chạy web tĩnh). Có `render.yaml` (Blueprint), build `corepack enable && pnpm install`, start `pnpm start`, dùng `process.env.PORT`. Cập nhật = `git push` → Render autoDeploy. Chi tiết + xử lý sự cố + chống cold-start: `DEPLOY_Server.md`.
 - Thay đổi **server (room.js/index.js/engine)** → **phải redeploy/restart**. Thay đổi **chỉ client** (`player-ws.html`) → chỉ cần Ctrl+F5. Lịch sử cuối trận dựng ở server nên đổi nó = phải redeploy.
 - **Bản Firebase → `firebase deploy`** (chạy trong thư mục `masoi-online/`), aliases `masoi` (prod `masoi-online-9e660`) và `masoi-staging`.
+
+## Phase 3 — Việc tiếp theo (bắt buộc để lên store)
+
+1. **Kiểm duyệt chat**: lọc từ ngữ tục/thô (badword list hoặc AI moderation), block user
+2. **Age-gate**: xác nhận tuổi ≥13/≥18 tùy thị trường trước khi chat
+3. **ToS + Privacy Policy** chính thức (App Store / Play Store bắt buộc)
+4. Cơ chế xóa dữ liệu theo yêu cầu (GDPR / Nghị định 13/2023 VN)
+
+---
 
 ## Quy ước & lưu ý (gotchas)
 
