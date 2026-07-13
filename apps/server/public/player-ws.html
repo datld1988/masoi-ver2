@@ -74,6 +74,9 @@ input:-webkit-autofill,input:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 100
 .rrow .rn{flex:1;line-height:1.15;}
 .rrow .rc{min-width:18px;text-align:center;font-weight:700;}
 .rstep{width:27px;height:27px;flex-shrink:0;border-radius:7px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-weight:700;cursor:pointer;}
+/* Toast thông báo */
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1e1040;border:1px solid var(--accent);color:var(--text);padding:10px 20px;border-radius:12px;font-size:.9rem;z-index:200;opacity:0;transition:opacity .3s;pointer-events:none;}
+#toast.show{opacity:1;}
 /* Overlay chuyển cảnh */
 #sceneOv{position:fixed;inset:0;background:#0d0920;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;z-index:99;opacity:0;pointer-events:none;transition:opacity .7s;}
 #sceneOv.rise #ovIcon{animation:riseUp 1.5s cubic-bezier(.2,.7,.2,1);} @keyframes riseUp{0%{transform:translateY(70px) scale(.55);opacity:0}45%{opacity:1}100%{transform:translateY(0) scale(1);opacity:1}}
@@ -93,6 +96,7 @@ input:-webkit-autofill,input:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 100
   <button id="leaveBtn" class="hidden" onclick="leaveRoom()" title="Thoát phòng">🚪</button>
 </header>
 <div id="sceneOv"><div id="ovIcon"></div><div id="ovTxt"></div></div>
+<div id="toast"></div>
 <main>
 
   <!-- Màn hình đăng nhập (hiện trước join) -->
@@ -119,7 +123,9 @@ input:-webkit-autofill,input:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 100
   <section id="scrJoin" class="card hidden">
     <div class="title">🐺 Vào chơi Ma Sói</div>
     <input type="text" id="inName" placeholder="Tên của bạn" maxlength="20">
-    <input type="text" id="inRoom" placeholder="Tên phòng (VD: NHOM1)" maxlength="16" style="margin-top:8px;text-transform:uppercase">
+    <button class="btn btn-primary" onclick="doQuickMatch()" style="margin-top:10px;background:linear-gradient(135deg,#7c3aed,#0ea5a4)">⚡ Tìm ván nhanh</button>
+    <div class="muted center" style="margin:10px 0 6px;font-size:.82rem">— hoặc chọn phòng cụ thể —</div>
+    <input type="text" id="inRoom" placeholder="Tên phòng (VD: NHOM1)" maxlength="16" style="text-transform:uppercase">
     <input type="password" id="inPass" placeholder="Mật khẩu (để trống nếu không đặt)" maxlength="30" style="margin-top:8px">
     <div class="row" style="margin-top:10px;gap:8px">
       <button class="btn btn-primary" onclick="doCreate()" style="flex:1;margin:0">➕ Tạo phòng</button>
@@ -127,9 +133,11 @@ input:-webkit-autofill,input:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 100
     </div>
     <div class="err" id="joinErr"></div>
     <div class="muted" id="conn" style="margin-top:6px"></div>
-    <div class="row" style="margin-top:8px">
+    <div class="row" style="margin-top:8px;gap:8px">
       <button class="btn btn-ghost" onclick="listRooms()" style="width:auto;margin:0;padding:8px 12px">🔄 Phòng đang mở</button>
+      <button class="btn btn-ghost" onclick="showLeaderboard()" style="width:auto;margin:0;padding:8px 12px">🏆 Bảng xếp hạng</button>
     </div>
+    <div id="lbBox" class="hidden" style="margin-top:8px"></div>
     <div id="roomList" style="margin-top:6px"></div>
     <details style="margin-top:8px"><summary class="muted" style="cursor:pointer;font-size:.85rem">Nâng cao (địa chỉ server)</summary>
       <input type="text" id="wsUrl" placeholder="ws://... (mặc định cùng máy chủ)" style="margin-top:6px">
@@ -137,8 +145,12 @@ input:-webkit-autofill,input:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 100
   </section>
 
   <section id="scrLobby" class="card hidden">
-    <div class="title" id="lobbyTitle">✅ Trong phòng</div>
-    <div class="roster" id="lobbyList"></div>
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <div class="title" id="lobbyTitle" style="margin-bottom:0">✅ Trong phòng</div>
+      <span class="muted" id="lobbyRoomCode" style="font-size:.8rem;font-family:monospace;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:2px 8px"></span>
+      <button onclick="copyInviteLink()" id="btnInvite" style="margin-left:auto;background:none;border:1px solid var(--border);border-radius:8px;color:var(--muted);padding:4px 10px;cursor:pointer;font-size:.8rem">🔗 Copy link mời</button>
+    </div>
+    <div class="roster" id="lobbyList" style="margin-top:10px"></div>
     <div class="muted" id="lobbyStatus" style="margin-top:8px"></div>
 
     <div id="ownerSetup">
@@ -285,8 +297,65 @@ async function signInGoogle(){
 }
 function continueAsGuest(){ fbUser=null; proceedToJoin(); }
 async function signOutUser(){ if(fbAuth) await fbAuth.signOut(); fbUser=null; }
-function proceedToJoin(){ show('scrAuth',false); show('scrJoin',true); }
+function proceedToJoin(){
+  show('scrAuth',false); show('scrJoin',true);
+  // Điền sẵn tên từ tài khoản Google
+  if(fbUser && $('inName') && !$('inName').value.trim()) $('inName').value=fbUser.displayName||'';
+}
 async function getIdToken(){ if(!fbUser) return null; try{ return await fbUser.getIdToken(); }catch{return null;} }
+
+async function doQuickMatch(){
+  const name=$('inName').value.trim()||'Ẩn danh';
+  pendingIdToken=await getIdToken();
+  const url=($('wsUrl').value.trim()||defUrl());
+  ws=new WebSocket(url); $('conn').textContent='Đang tìm ván…';
+  ws.onopen=()=>{ const idToken=pendingIdToken; pendingIdToken=null; send({t:'quickMatch',name,idToken}); };
+  ws.onclose=()=>{ $('conn').textContent='Mất kết nối (tải lại trang để vào lại)'; };
+  ws.onerror=()=>{ $('conn').textContent='Lỗi kết nối – server đã chạy chưa?'; };
+  ws.onmessage=e=>handle(JSON.parse(e.data));
+}
+
+/* ── Toast ── */
+let toastT=null;
+function showToast(msg){ const el=$('toast'); if(!el) return; el.textContent=msg; el.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>el.classList.remove('show'),3000); }
+
+/* ── Báo cáo người chơi ── */
+function reportPlayer(targetId, targetName, e){ if(e) e.stopPropagation();
+  if(!confirm(`Báo cáo "${targetName}" vì hành vi không phù hợp?`)) return;
+  send({t:'report', targetId, reason:'Hành vi không phù hợp'});
+}
+
+/* ── Bảng xếp hạng ── */
+async function showLeaderboard(){
+  const box=$('lbBox'); if(!box) return;
+  if(!box.classList.contains('hidden')){ show('lbBox',false); return; }
+  box.innerHTML='<div class="muted" style="padding:8px">⌛ Đang tải…</div>'; show('lbBox',true);
+  try{
+    const url=(($('wsUrl').value.trim()||defUrl()).replace(/^ws/,'http'))+'/leaderboard';
+    const data=await fetch(url).then(r=>r.json());
+    if(!data.length){ box.innerHTML='<div class="muted" style="padding:8px">Chưa có dữ liệu.</div>'; return; }
+    box.innerHTML='<div style="font-weight:700;margin-bottom:6px;font-size:.85rem">🏆 Top ELO</div>'+
+      '<div style="font-size:.8rem">'+
+      data.map((u,i)=>`<div style="display:flex;gap:8px;padding:4px 0;border-bottom:1px solid var(--border)">
+        <span style="color:var(--muted);width:20px">${i+1}</span>
+        <span style="flex:1;font-weight:700">${esc(u.displayName||'?')}</span>
+        <span style="color:var(--gold)">${u.elo}</span>
+        <span class="muted">${u.wins}W/${u.gamesPlayed}G</span>
+      </div>`).join('')+
+      '</div>';
+  }catch(err){ box.innerHTML='<div class="muted" style="padding:8px">Không tải được bảng xếp hạng.</div>'; }
+}
+
+function copyInviteLink(){
+  const code=localStorage.getItem('masoi_ws_room')||$('inRoom').value.trim();
+  if(!code){ alert('Chưa vào phòng nào.'); return; }
+  const url=`${location.origin}${location.pathname}?room=${encodeURIComponent(code)}`;
+  navigator.clipboard.writeText(url).then(()=>{
+    const btn=$('btnInvite'); if(!btn) return;
+    const orig=btn.textContent; btn.textContent='✅ Đã copy!'; btn.style.color='var(--green)';
+    setTimeout(()=>{ btn.textContent=orig; btn.style.color=''; },2200);
+  }).catch(()=>prompt('Copy link này để mời bạn:',url));
+}
 
 let pendingIdToken=null;  // idToken lấy trước khi kết nối WS
 
@@ -338,6 +407,9 @@ function leaveRoom(force){
 window.addEventListener('load',()=>{
   $('wsUrl').value=defUrl();
   if($('sndBtn')) $('sndBtn').textContent=sndOn?'🔊':'🔇';
+  // Đọc ?room= từ URL (link mời)
+  const urlRoom=new URLSearchParams(location.search).get('room');
+  if(urlRoom && $('inRoom')) $('inRoom').value=urlRoom.toUpperCase().slice(0,16);
   const t=localStorage.getItem('masoi_ws_token'), r=localStorage.getItem('masoi_ws_room');
   if(t&&r){
     // Có phiên cũ → reconnect thẳng, bỏ qua màn auth
@@ -376,16 +448,19 @@ function clearCd(key){ clearInterval(cds[key]); const el=$(cdEl[key]); if(el) el
 /* ── XỬ LÝ MESSAGE ── */
 function handle(m){
   switch(m.t){
-    case 'welcome': myId=m.id; if(m.token) localStorage.setItem('masoi_ws_token',m.token);
-      // Nếu đăng nhập Google, tự điền tên hiển thị từ Firebase
-      if(fbUser && $('inName') && !$('inName').value.trim()) $('inName').value=fbUser.displayName||'';
+    case 'welcome': myId=m.id;
+      if(m.token) localStorage.setItem('masoi_ws_token',m.token);
+      if(m.room){ localStorage.setItem('masoi_ws_room',m.room); if($('inRoom')) $('inRoom').value=m.room; }
       break;
     case 'userProfile':
-      if($('authStats')) $('authStats').textContent=`${m.gamesPlayed||0} ván · ${m.wins||0} thắng`;
+      if($('authStats')) $('authStats').textContent=`${m.gamesPlayed||0} ván · ${m.wins||0} thắng · ELO ${m.elo||1000}`;
       break;
+    case 'toast': showToast(m.message); break;
     case 'rooms': renderRooms(m.list); break;
     case 'roles': roleCatalog=m.roles||[]; if(!Object.keys(roleCounts).length) roleCounts={wolf:1,seer:1}; renderRoleConfig(); break;
-    case 'lobby': players=m.players; ownerId=m.ownerId; isOwner=(myId===ownerId); show('scrJoin',false); show('scrLobby',true); show('leaveBtn',true); renderRoster('lobbyList'); updVillager(); renderLobby(); break;
+    case 'lobby': players=m.players; ownerId=m.ownerId; isOwner=(myId===ownerId); show('scrJoin',false); show('scrLobby',true); show('leaveBtn',true);
+      { const rc=$('lobbyRoomCode'); if(rc){ const code=localStorage.getItem('masoi_ws_room')||''; rc.textContent=code?'📌 '+code:''; } }
+      renderRoster('lobbyList'); updVillager(); renderLobby(); break;
     case 'yourRole': myTeam=m.role.team; renderRole(m); break;
     case 'state': onState(m); break;
     case 'scene':
@@ -437,12 +512,14 @@ function renderStatusBar(){
 }
 function renderRoster(elId){
   const el=$(elId); if(!el) return; el.className='roster';
+  const inGame=(elId==='playerList');
   const seats=[...players].sort((a,b)=>(a.seat||0)-(b.seat||0));
   el.innerHTML=seats.map(p=>{
     const me=p.id===myId, alive=p.alive!==false, online=p.connected!==false;
     const col=alive?avaColor(p.name):'#4b5563';
     const dot=alive?`<span class="pdot" style="background:${online?'var(--green)':'#6b7280'}"></span>`:`<span class="pdot" style="background:#450a0a">💀</span>`;
-    return `<div class="ptile${alive?'':' dead'}${me?' me':''}"><div class="ava" style="background:${col}">${esc(avaInit(p.name))}${dot}</div>
+    const reportBtn=inGame&&!me?`<button onclick="reportPlayer('${p.id}','${esc(p.name).replace(/'/g,"\\'")}',event)" style="position:absolute;top:3px;right:3px;background:none;border:none;font-size:.6rem;color:var(--muted);cursor:pointer;padding:2px 4px;opacity:.55" title="Báo cáo">⚑</button>`:'';
+    return `<div class="ptile${alive?'':' dead'}${me?' me':''}" style="position:relative">${reportBtn}<div class="ava" style="background:${col}">${esc(avaInit(p.name))}${dot}</div>
       <div class="pname">${me?'⭐ ':''}${esc(p.name)}${p.ready===true?' ✅':''}</div><div class="psub">${p.ready===false?'⏳ chưa sẵn sàng':(alive?('Ghế '+((p.seat||0)+1)):'Đã chết')}</div></div>`;
   }).join('');
 }

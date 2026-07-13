@@ -67,6 +67,14 @@ const rooms = new Map();          // code -> Room
 const sockets = new Map();        // playerId(token) -> ws
 
 function sendTo(pid, msg) { const ws = sockets.get(pid); if (ws && ws.readyState === 1) ws.send(JSON.stringify(msg)); }
+const ROOM_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // bỏ I, O, 0, 1 dễ nhầm
+function randomRoomCode() {
+  let code;
+  do { code = Array.from({ length: 5 }, () => ROOM_CHARS[Math.floor(Math.random() * ROOM_CHARS.length)]).join(''); }
+  while (rooms.has(code));
+  return code;
+}
+
 function getRoom(code) {
   if (!rooms.has(code)) {
     rooms.set(code, new Room({
@@ -74,7 +82,7 @@ function getRoom(code) {
       onGameOver(winner, reveal, roomPlayers) {
         for (let i = 0; i < roomPlayers.length; i++) {
           const uid = roomPlayers[i].id;
-          if (userDB.has(uid) && reveal[i]) recordResult(uid, winner, reveal[i].team);
+          if (userDB.has(uid) && reveal[i]) recordResult(uid, winner, reveal[i].team, reveal, roomPlayers, i);
         }
         scheduleSaveUsers();
       },
@@ -90,7 +98,11 @@ const SNAP = join(DATA_DIR, 'rooms.json');
 const USERS_FILE = join(DATA_DIR, 'users.json');
 
 /* ── Hồ sơ người dùng (lưu vào users.json) ── */
-const userDB = new Map(); // uid -> { uid, displayName, photoURL, gamesPlayed, wins, winsByTeam, createdAt }
+const userDB = new Map();
+const BANS_FILE   = join(DATA_DIR, 'bans.json');
+const REPORTS_FILE = join(DATA_DIR, 'reports.json');
+const bannedUIDs = new Set();
+const reportLog  = [];               // tối đa 1000 mục, giữ trong bộ nhớ + lưu file
 
 function loadUsers() {
   try {
@@ -106,23 +118,59 @@ function saveUsers() {
     writeFileSync(USERS_FILE, JSON.stringify(Object.fromEntries(userDB), null, 2));
   } catch (e) { console.error('Lưu hồ sơ lỗi:', e.message); }
 }
+function loadBans() {
+  try {
+    if (existsSync(BANS_FILE)) { for (const uid of JSON.parse(readFileSync(BANS_FILE, 'utf8'))) bannedUIDs.add(uid); }
+    if (bannedUIDs.size) console.log(`Nạp ${bannedUIDs.size} tài khoản bị ban`);
+  } catch (e) { console.error('Nạp bans lỗi:', e.message); }
+}
+function saveBans() {
+  try { writeFileSync(BANS_FILE, JSON.stringify([...bannedUIDs], null, 2)); }
+  catch (e) { console.error('Lưu bans lỗi:', e.message); }
+}
+function loadReports() {
+  try {
+    if (existsSync(REPORTS_FILE)) { reportLog.push(...JSON.parse(readFileSync(REPORTS_FILE, 'utf8'))); }
+  } catch (e) { console.error('Nạp reports lỗi:', e.message); }
+}
+function saveReports() {
+  try { writeFileSync(REPORTS_FILE, JSON.stringify(reportLog.slice(-1000), null, 2)); }
+  catch (e) { console.error('Lưu reports lỗi:', e.message); }
+}
+
 function upsertUser(uid, { displayName, photoURL }) {
-  if (!userDB.has(uid)) userDB.set(uid, { uid, displayName, photoURL, gamesPlayed: 0, wins: 0, winsByTeam: {}, createdAt: Date.now() });
+  if (!userDB.has(uid)) userDB.set(uid, { uid, displayName, photoURL, elo: 1000, gamesPlayed: 0, wins: 0, winsByTeam: {}, createdAt: Date.now() });
   const u = userDB.get(uid);
   if (displayName) u.displayName = displayName;
   if (photoURL !== undefined) u.photoURL = photoURL;
   u.lastSeen = Date.now();
   return u;
 }
-function recordResult(uid, winner, team) {
+
+/* ELO chuẩn: K=32, so với ELO trung bình phe đối thủ */
+const ELO_K = 32, ELO_DEFAULT = 1000;
+function recordResult(uid, winner, team, allReveal, allPlayers, myIdx) {
   const u = userDB.get(uid); if (!u) return;
   u.gamesPlayed = (u.gamesPlayed || 0) + 1;
-  if (winner === team) {
+  const won = winner === team;
+  if (won) {
     u.wins = (u.wins || 0) + 1;
     u.winsByTeam = u.winsByTeam || {};
     u.winsByTeam[team] = (u.winsByTeam[team] || 0) + 1;
   }
+  // ELO: so với ELO trung bình phe đối thủ
+  const myElo = u.elo || ELO_DEFAULT;
+  const oppElos = allReveal
+    .map((r, i) => ({ team: r.team, uid: allPlayers[i]?.id, i }))
+    .filter(x => x.i !== myIdx && x.team !== team)
+    .map(x => (userDB.get(x.uid)?.elo || ELO_DEFAULT));
+  if (oppElos.length) {
+    const avgOpp = oppElos.reduce((a, b) => a + b, 0) / oppElos.length;
+    const exp = 1 / (1 + Math.pow(10, (avgOpp - myElo) / 400));
+    u.elo = Math.max(100, Math.round(myElo + ELO_K * ((won ? 1 : 0) - exp)));
+  }
 }
+
 let saveUsersT = null;
 function scheduleSaveUsers() { clearTimeout(saveUsersT); saveUsersT = setTimeout(saveUsers, 1500); }
 function saveRooms() {
@@ -151,18 +199,59 @@ const STATIC = {
   '/player-ws.html': 'player-ws.html',
   '/role-art.js': 'role-art.js',
 };
+const ADMIN_KEY = process.env.ADMIN_KEY || '';
+
 const httpServer = createServer(async (req, res) => {
-  const url = (req.url || '/').split('?')[0];
-  const name = STATIC[url];
-  if (!name) { res.writeHead(404); res.end('not found'); return; }
-  try {
-    const data = await readFile(join(__dirname, '..', 'public', name));
-    const ct = name.endsWith('.js') ? 'application/javascript' : 'text/html';
-    res.writeHead(200, { 'Content-Type': ct + '; charset=utf-8' });
-    res.end(data);
-  } catch {
-    res.writeHead(404); res.end(name + ' không tìm thấy');
+  const parsed = new URL(req.url || '/', `http://localhost`);
+  const path = parsed.pathname, q = parsed.searchParams;
+
+  /* ── File tĩnh ── */
+  const name = STATIC[path];
+  if (name) {
+    try {
+      const data = await readFile(join(__dirname, '..', 'public', name));
+      const ct = name.endsWith('.js') ? 'application/javascript' : 'text/html';
+      res.writeHead(200, { 'Content-Type': ct + '; charset=utf-8' });
+      res.end(data);
+    } catch { res.writeHead(404); res.end(name + ' không tìm thấy'); }
+    return;
   }
+
+  /* ── Bảng xếp hạng (public) ── */
+  if (path === '/leaderboard') {
+    const top = [...userDB.values()]
+      .filter(u => (u.gamesPlayed || 0) >= 1)
+      .sort((a, b) => (b.elo || ELO_DEFAULT) - (a.elo || ELO_DEFAULT))
+      .slice(0, 20)
+      .map(u => ({ displayName: u.displayName, elo: u.elo || ELO_DEFAULT, gamesPlayed: u.gamesPlayed || 0, wins: u.wins || 0 }));
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+    res.end(JSON.stringify(top));
+    return;
+  }
+
+  /* ── Admin endpoints (cần ADMIN_KEY) ── */
+  if (path.startsWith('/admin/')) {
+    if (!ADMIN_KEY || q.get('key') !== ADMIN_KEY) { res.writeHead(403); res.end('Forbidden'); return; }
+    if (path === '/admin/reports') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(reportLog.slice(-100)));
+    } else if (path === '/admin/ban') {
+      const uid = q.get('uid'); if (!uid) { res.writeHead(400); res.end('Missing uid'); return; }
+      bannedUIDs.add(uid); saveBans();
+      res.writeHead(200); res.end(`Banned: ${uid}`);
+    } else if (path === '/admin/unban') {
+      const uid = q.get('uid'); if (!uid) { res.writeHead(400); res.end('Missing uid'); return; }
+      bannedUIDs.delete(uid); saveBans();
+      res.writeHead(200); res.end(`Unbanned: ${uid}`);
+    } else if (path === '/admin/users') {
+      const list = [...userDB.values()].sort((a, b) => (b.gamesPlayed || 0) - (a.gamesPlayed || 0)).slice(0, 100);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(list));
+    } else { res.writeHead(404); res.end('Unknown admin endpoint'); }
+    return;
+  }
+
+  res.writeHead(404); res.end('not found');
 });
 
 const wss = new WebSocketServer({ server: httpServer });
@@ -180,12 +269,17 @@ wss.on('connection', (ws, req) => {
     /* ── Xử lý xác thực Firebase và lấy pid + tên ── */
     async function resolveIdentity(preferredName) {
       if (m.idToken) {
+        if (!adminAuth) {
+          // Firebase Admin chưa cấu hình → chơi như khách, không lưu stats
+          return { pid: newId(), name: preferredName || 'Ẩn danh' };
+        }
         const decoded = await verifyFirebaseToken(m.idToken);
         if (!decoded) { sendErr('Token đăng nhập không hợp lệ, hãy đăng nhập lại.'); return null; }
         const uid = decoded.uid;
+        if (bannedUIDs.has(uid)) { sendErr('Tài khoản bị cấm. Liên hệ quản trị viên nếu có nhầm lẫn.'); return null; }
         const name = decoded.name || preferredName || 'Ẩn danh';
         const u = upsertUser(uid, { displayName: decoded.name, photoURL: decoded.picture });
-        ws.send(JSON.stringify({ t: 'userProfile', uid: u.uid, displayName: u.displayName, gamesPlayed: u.gamesPlayed, wins: u.wins, winsByTeam: u.winsByTeam }));
+        ws.send(JSON.stringify({ t: 'userProfile', uid: u.uid, displayName: u.displayName, gamesPlayed: u.gamesPlayed, wins: u.wins || 0, elo: u.elo || ELO_DEFAULT, winsByTeam: u.winsByTeam }));
         return { pid: uid, name };
       }
       return { pid: newId(), name: preferredName || 'Ẩn danh' };
@@ -201,7 +295,7 @@ wss.on('connection', (ws, req) => {
       const room = getRoom(code);
       room.password = (m.password || '');
       ws._room = room; ws._pid = pid; sockets.set(pid, ws);
-      ws.send(JSON.stringify({ t: 'welcome', id: pid, token: pid }));
+      ws.send(JSON.stringify({ t: 'welcome', id: pid, token: pid, room: code }));
       room.join(pid, name);           // người tạo = chủ phòng
       scheduleSave();
       return;
@@ -216,7 +310,25 @@ wss.on('connection', (ws, req) => {
       if (!identity) return;
       const { pid, name } = identity;
       ws._room = room; ws._pid = pid; sockets.set(pid, ws);
-      ws.send(JSON.stringify({ t: 'welcome', id: pid, token: pid }));
+      ws.send(JSON.stringify({ t: 'welcome', id: pid, token: pid, room: code }));
+      room.join(pid, name);
+      scheduleSave();
+      return;
+    }
+    if (m.t === 'quickMatch') {
+      const identity = await resolveIdentity(m.name);
+      if (!identity) return;
+      const { pid, name } = identity;
+      // Tìm phòng public tốt nhất: có người, chưa bắt đầu, chưa có mật khẩu, chưa đầy
+      let best = null;
+      for (const [code, room] of rooms) {
+        if (room.phase === 'lobby' && !room.password && room.players.length > 0 && room.players.length < 12)
+          if (!best || room.players.length > best.room.players.length) best = { code, room };
+      }
+      const code = best ? best.code : randomRoomCode();
+      const room = best ? best.room : getRoom(code);
+      ws._room = room; ws._pid = pid; sockets.set(pid, ws);
+      ws.send(JSON.stringify({ t: 'welcome', id: pid, token: pid, room: code }));
       room.join(pid, name);
       scheduleSave();
       return;
@@ -249,6 +361,16 @@ wss.on('connection', (ws, req) => {
       case 'chat':   room.handleChat(pid, m.channel, m.text); break;
       case 'newMatch': room.newMatch(); break;
       case 'ready': room.setReady(pid, m.value); break;
+      case 'report': {
+        const target = room.players.find(p => p.id === m.targetId);
+        if (target && m.targetId !== pid) {
+          const reporter = room.players.find(p => p.id === pid);
+          reportLog.push({ time: Date.now(), reporterUid: pid, reporterName: reporter?.name || '?', targetUid: m.targetId, targetName: target.name, reason: (m.reason || '').slice(0, 200), room: room.id });
+          if (reportLog.length % 20 === 0) saveReports();
+          ws.send(JSON.stringify({ t: 'toast', message: '✅ Đã ghi nhận báo cáo. Cảm ơn!' }));
+        }
+        break;
+      }
       case 'leave': {
         room.leave(pid);
         sockets.delete(pid);
@@ -270,9 +392,12 @@ wss.on('connection', (ws, req) => {
   });
 });
 
-loadRooms();   // khôi phục phòng đang chơi (nếu server vừa restart)
-loadUsers();   // nạp hồ sơ người dùng
+loadRooms();
+loadUsers();
+loadBans();
+loadReports();
 httpServer.listen(PORT, () => {
-  console.log(`Ma Sói server chạy: http://localhost:${PORT}  (client thử)  ·  ws://localhost:${PORT}`);
+  console.log(`Ma Sói server chạy: http://localhost:${PORT}  ·  ws://localhost:${PORT}`);
+  if (ADMIN_KEY) console.log(`Admin: GET /admin/reports?key=... | /admin/ban?uid=...&key=... | /admin/users?key=...`);
 });
-for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { saveRooms(); saveUsers(); process.exit(0); });
+for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { saveRooms(); saveUsers(); saveBans(); saveReports(); process.exit(0); });
