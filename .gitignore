@@ -8,3 +8,5 @@ coverage/
 .DS_Store
 .env
 .env.*
+# Service account keys — tuyệt đối không commit
+*firebase-adminsdk*.json

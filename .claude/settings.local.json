@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm install *)",
+      "Bash(node --check apps/server/src/index.js)",
+      "Bash(node --check apps/server/src/room.js)",
+      "Bash(node apps/server/test/run.mjs)",
+      "Bash(timeout 5 node apps/server/src/index.js)",
+      "Skill(claude-in-chrome)",
+      "Bash(timeout 6 node --env-file=.env.local src/index.js)",
+      "Bash(pnpm add *)",
+      "mcp__claude-in-chrome__tabs_context_mcp",
+      "PowerShell(Set-Clipboard *)"
+    ]
+  }
+}

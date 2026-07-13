@@ -81,6 +81,9 @@ input:-webkit-autofill,input:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 100
 #ovTxt{font-size:1.25rem;font-weight:700;}
 #fxLayer{position:fixed;inset:0;pointer-events:none;z-index:80;overflow:hidden;} .fxp{position:absolute;top:-24px;animation:fxFall linear forwards;} @keyframes fxFall{to{transform:translateY(112vh) rotate(720deg);}}
 </style>
+<!-- Firebase Auth (compat SDK — hoạt động với script thường, không cần ESM) -->
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 </head>
 <body>
 <div id="scene" aria-hidden="true"></div>
@@ -92,7 +95,28 @@ input:-webkit-autofill,input:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 100
 <div id="sceneOv"><div id="ovIcon"></div><div id="ovTxt"></div></div>
 <main>
 
-  <section id="scrJoin" class="card">
+  <!-- Màn hình đăng nhập (hiện trước join) -->
+  <section id="scrAuth" class="card">
+    <div class="title center">🐺 Ma Sói Online</div>
+    <div id="authUser" class="hidden" style="text-align:center;margin-bottom:14px">
+      <img id="authAvatar" width="52" height="52" style="border-radius:50%;display:block;margin:0 auto 6px;border:2px solid var(--accent)" src="" alt="">
+      <div id="authName" style="font-weight:700;font-size:1.05rem"></div>
+      <div id="authStats" class="muted" style="font-size:.8rem;margin-top:2px"></div>
+      <div class="row" style="justify-content:center;margin-top:10px;gap:8px">
+        <button class="btn btn-primary" onclick="proceedToJoin()" style="width:auto;margin:0;padding:9px 20px">🚀 Vào chơi</button>
+        <button class="btn btn-ghost" onclick="signOutUser()" style="width:auto;margin:0;padding:9px 14px">🚪 Đăng xuất</button>
+      </div>
+    </div>
+    <button id="btnGoogle" class="btn btn-primary" onclick="signInGoogle()" style="display:flex;align-items:center;justify-content:center;gap:8px">
+      <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#fff" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#fff" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#fff" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#fff" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+      Đăng nhập bằng Google
+    </button>
+    <div class="muted center" style="margin:10px 0;font-size:.85rem">— hoặc —</div>
+    <button class="btn btn-ghost" onclick="continueAsGuest()">👤 Chơi không đăng nhập</button>
+    <div class="muted" style="margin-top:10px;font-size:.78rem;text-align:center">Đăng nhập để lưu thống kê số ván thắng/thua</div>
+  </section>
+
+  <section id="scrJoin" class="card hidden">
     <div class="title">🐺 Vào chơi Ma Sói</div>
     <input type="text" id="inName" placeholder="Tên của bạn" maxlength="20">
     <input type="text" id="inRoom" placeholder="Tên phòng (VD: NHOM1)" maxlength="16" style="margin-top:8px;text-transform:uppercase">
@@ -223,9 +247,48 @@ input:-webkit-autofill,input:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 100
 <script>
 'use strict';
 const $=id=>document.getElementById(id);
-const show=(id,on)=>$(id).classList.toggle('hidden',!on);
+const show=(id,on)=>{ const el=$(id); if(el) el.classList.toggle('hidden',!on); };
 const TEAM_VI={wolf:'🐺 Phe Sói',village:'🏡 Phe Dân',third:'🎭 Phe Thứ Ba'};
 const esc=s=>String(s||'').replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
+
+/* ── Firebase Auth ── */
+let fbAuth=null, fbUser=null;
+(function(){
+  if(typeof firebase==='undefined') return;
+  firebase.initializeApp({
+    apiKey:'AIzaSyBgzbAxAiK3Xqju9Ubw7T_uxaj5tTX5p6c',
+    authDomain:'masoi-online-9e660.firebaseapp.com',
+    projectId:'masoi-online-9e660',
+    appId:'1:450466353519:web:f8bc9c07aeb8aa1659989a',
+  });
+  fbAuth=firebase.auth();
+  fbAuth.onAuthStateChanged(user=>{
+    fbUser=user;
+    updateAuthUI(user);
+  });
+})();
+
+function updateAuthUI(user){
+  const authEl=$('scrAuth'); if(!authEl||authEl.classList.contains('hidden')) return;
+  show('authUser',!!user); show('btnGoogle',!user);
+  if(user){
+    const av=$('authAvatar'); if(av){ av.src=user.photoURL||''; av.style.display=user.photoURL?'block':'none'; }
+    if($('authName')) $('authName').textContent=user.displayName||user.email||'Người dùng';
+  }
+}
+async function signInGoogle(){
+  if(!fbAuth){alert('Firebase chưa sẵn sàng, thử lại sau.');return;}
+  const btn=$('btnGoogle'); if(btn) btn.disabled=true;
+  try{ await fbAuth.signInWithPopup(new firebase.auth.GoogleAuthProvider()); proceedToJoin(); }
+  catch(e){ alert('Đăng nhập thất bại: '+(e.message||e)); }
+  finally{ if(btn) btn.disabled=false; }
+}
+function continueAsGuest(){ fbUser=null; proceedToJoin(); }
+async function signOutUser(){ if(fbAuth) await fbAuth.signOut(); fbUser=null; }
+function proceedToJoin(){ show('scrAuth',false); show('scrJoin',true); }
+async function getIdToken(){ if(!fbUser) return null; try{ return await fbUser.getIdToken(); }catch{return null;} }
+
+let pendingIdToken=null;  // idToken lấy trước khi kết nối WS
 
 let ws=null, myId=null, myTeam=null, myAlive=true, players=[], phase='lobby', meta={}, myReady=false, ownerId=null, isOwner=false;
 let curPrompt=null, sel=[], witchSel={heal:null,poison:null}, myVote=null, voteOptions=[];
@@ -250,16 +313,17 @@ function connect(mode){
   ws.onopen=()=>{ $('conn').textContent='Đã kết nối ✓';
     if(mode==='list'){ send({t:'listRooms'}); return; }
     if(mode==='resume'){ send({t:'resume',room,token:localStorage.getItem('masoi_ws_token')}); return; }
-    if(mode==='create') send({t:'create',room,name,password:pass});
-    else send({t:'join',room,name,password:pass});
+    const idToken=pendingIdToken; pendingIdToken=null;
+    if(mode==='create') send({t:'create',room,name,password:pass,idToken});
+    else send({t:'join',room,name,password:pass,idToken});
     localStorage.setItem('masoi_ws_room',room); localStorage.setItem('masoi_ws_name',name); };
   ws.onclose=()=>{ $('conn').textContent='Mất kết nối (tải lại trang để vào lại)'; };
   ws.onerror=()=>{ $('conn').textContent='Lỗi kết nối – server đã chạy chưa?'; };
   ws.onmessage=e=>handle(JSON.parse(e.data));
 }
 function send(o){ if(ws&&ws.readyState===1) ws.send(JSON.stringify(o)); }
-function doJoin(){ const r=$('inRoom').value.trim(); if(!r){$('joinErr').textContent='Nhập tên phòng!';return;} $('joinErr').textContent=''; connect('join'); }
-function doCreate(){ const r=$('inRoom').value.trim(); if(!r){$('joinErr').textContent='Nhập tên phòng!';return;} $('joinErr').textContent=''; connect('create'); }
+async function doJoin(){ const r=$('inRoom').value.trim(); if(!r){$('joinErr').textContent='Nhập tên phòng!';return;} $('joinErr').textContent=''; pendingIdToken=await getIdToken(); connect('join'); }
+async function doCreate(){ const r=$('inRoom').value.trim(); if(!r){$('joinErr').textContent='Nhập tên phòng!';return;} $('joinErr').textContent=''; pendingIdToken=await getIdToken(); connect('create'); }
 function listRooms(){ if(ws&&ws.readyState===1) send({t:'listRooms'}); else connect('list'); }
 function renderRooms(list){ const el=$('roomList'); if(!el) return;
   if(!list||!list.length){ el.innerHTML='<span class="muted">Chưa có phòng nào đang mở. Bấm “Tạo phòng” để mở phòng mới.</span>'; return; }
@@ -275,7 +339,17 @@ window.addEventListener('load',()=>{
   $('wsUrl').value=defUrl();
   if($('sndBtn')) $('sndBtn').textContent=sndOn?'🔊':'🔇';
   const t=localStorage.getItem('masoi_ws_token'), r=localStorage.getItem('masoi_ws_room');
-  if(t&&r){ $('inRoom').value=r; $('inName').value=localStorage.getItem('masoi_ws_name')||''; connect('resume'); }
+  if(t&&r){
+    // Có phiên cũ → reconnect thẳng, bỏ qua màn auth
+    show('scrAuth',false);
+    $('inRoom').value=r; $('inName').value=localStorage.getItem('masoi_ws_name')||'';
+    connect('resume');
+  } else {
+    // Hiện màn auth, ẩn join
+    show('scrAuth',true); show('scrJoin',false);
+    // Nếu Firebase không load được sau 3s → cho vào thẳng kiểu khách
+    setTimeout(()=>{ if($('scrAuth')&&!$('scrAuth').classList.contains('hidden')&&!fbAuth) proceedToJoin(); },3000);
+  }
 });
 function sendNewMatch(){ send({t:'newMatch'}); }
 
@@ -302,7 +376,13 @@ function clearCd(key){ clearInterval(cds[key]); const el=$(cdEl[key]); if(el) el
 /* ── XỬ LÝ MESSAGE ── */
 function handle(m){
   switch(m.t){
-    case 'welcome': myId=m.id; if(m.token) localStorage.setItem('masoi_ws_token',m.token); break;
+    case 'welcome': myId=m.id; if(m.token) localStorage.setItem('masoi_ws_token',m.token);
+      // Nếu đăng nhập Google, tự điền tên hiển thị từ Firebase
+      if(fbUser && $('inName') && !$('inName').value.trim()) $('inName').value=fbUser.displayName||'';
+      break;
+    case 'userProfile':
+      if($('authStats')) $('authStats').textContent=`${m.gamesPlayed||0} ván · ${m.wins||0} thắng`;
+      break;
     case 'rooms': renderRooms(m.list); break;
     case 'roles': roleCatalog=m.roles||[]; if(!Object.keys(roleCounts).length) roleCounts={wolf:1,seer:1}; renderRoleConfig(); break;
     case 'lobby': players=m.players; ownerId=m.ownerId; isOwner=(myId===ownerId); show('scrJoin',false); show('scrLobby',true); show('leaveBtn',true); renderRoster('lobbyList'); updVillager(); renderLobby(); break;
@@ -463,4 +543,155 @@ function castVote(id){ myVote=id; send({t:'vote',target:id}); drawVote(); $('vot
 
 function renderEnd(m){
   show('endBox',true); show('promptBox',false); show('sleepBox',false); show('voteBox',false);
-  const W={village:['🏆','PHE DÂN THẮNG!'],wolf:['🐺','PHE SÓI THẮNG!'],third:['🎭','PHE THỨ B
+  const W={village:['🏆','PHE DÂN THẮNG!'],wolf:['🐺','PHE SÓI THẮNG!'],third:['🎭','PHE THỨ BA THẮNG!']};
+  const w=W[m.winner]||['🏁','KẾT THÚC']; $('endIcon').textContent=w[0]; $('endTitle').textContent=w[1];
+  $('endReveal').innerHTML=(m.reveal||[]).map(r=>`${esc(r.name)} — ${esc(r.role)}${r.alive?'':' 💀'}`).join('<br>');
+  spawnFX(m.winner);
+}
+
+/* ── Chat ── */
+const CH_VI={main:'💬 Chung',wolf:'🐺 Sói',dead:'👻 Âm phủ'};
+function updateChatTabs(){
+  if(!$('chatTabs')) return;
+  const tabs=['main']; if(myTeam==='wolf') tabs.push('wolf'); if(myAlive===false) tabs.push('dead');
+  if(!tabs.includes(chatCh)) chatCh='main';
+  $('chatTabs').innerHTML=tabs.map(c=>`<button class="btn-ghost ${c===chatCh?'':''}" style="flex:1;padding:7px;border-radius:9px;${c===chatCh?'border-color:var(--accent);color:var(--accent)':''}" onclick="setChatCh('${c}')">${CH_VI[c]}</button>`).join('');
+  renderChat();
+}
+function setChatCh(c){ chatCh=c; updateChatTabs(); }
+function renderChat(){
+  const arr=chatBuf[chatCh]||[];
+  $('chatMsgs').innerHTML=arr.map(m=>{ const isMc=m.from==='MC'||m.mc; const mine=m.from===((players.find(p=>p.id===myId)||{}).name);
+    const ava=`<span class="cava" style="background:${isMc?'#8a6a1e':avaColor(m.from)}">${esc(avaInit(m.from))}</span>`;
+    return `<div class="cmsg${mine?' mine':''}">${ava}<span class="cbub" style="background:${mine?'#3b1a6e':'var(--surface2)'}"><b style="color:${isMc?'var(--gold)':'var(--accent)'}">${esc(m.from)}:</b> ${esc(m.text)}</span></div>`;
+  }).join('')||'<span class="muted">Chưa có tin nhắn.</span>';
+  $('chatMsgs').scrollTop=$('chatMsgs').scrollHeight;
+  const canMain=phase==='ended'||(phase!=='night'&&myAlive)||phase==='lobby';
+  let can=chatCh==='main'?canMain:chatCh==='wolf'?(myTeam==='wolf'&&myAlive&&phase==='night'):!myAlive;
+  $('chatIn').disabled=!can;
+  $('chatHint').textContent = chatCh==='main'&&phase==='night'?'🌙 Ban đêm không chat kênh chung':'';
+}
+function sendChat(){ const t=$('chatIn').value.trim(); if(!t||$('chatIn').disabled) return; send({t:'chat',channel:chatCh,text:t}); $('chatIn').value=''; }
+const EMOJIS=['😀','😂','😅','😎','😍','🤔','😱','😭','😡','😴','🤫','👍','👎','🙏','🔥','💀','🐺','🌙','☀️','❤️','💘','🗳️','✅','❌','😈','🥳'];
+function toggleEmo(){ const p=$('emoPal'); if(p.classList.contains('hidden')){ if(!p.dataset.b){ p.innerHTML=EMOJIS.map(e=>`<button type="button" style="background:none;border:none;font-size:1.4rem;cursor:pointer;padding:2px" onclick="insEmo('${e}')">${e}</button>`).join(''); p.dataset.b='1'; } p.classList.remove('hidden'); } else p.classList.add('hidden'); }
+function insEmo(e){ const i=$('chatIn'); if(i.disabled) return; i.value=(i.value+e).slice(0,300); i.focus(); }
+
+/* ── Lobby helpers ── */
+function renderRoleConfig(){
+  const el=$('roleGrid'); if(!el||!roleCatalog.length) return;
+  const groups=[['village','🏡 Phe Dân'],['wolf','🐺 Phe Sói'],['third','🎭 Phe Thứ Ba']];
+  let html='';
+  for(const [team,label] of groups){
+    const roles=roleCatalog.filter(r=>r.team===team && r.id!=='villager' && r.id!=='littlegirl');
+    if(!roles.length) continue;
+    html+=`<div class="rgroup">${label}</div><div class="rgrid">`+roles.map(r=>
+      `<div class="rrow"><span class="ri">${r.icon||''}</span><span class="rn">${esc(r.name)}</span>`+
+      `<button class="rstep" onclick="incRole('${r.id}',-1)">−</button>`+
+      `<span class="rc" id="rc_${r.id}">${roleCounts[r.id]||0}</span>`+
+      `<button class="rstep" onclick="incRole('${r.id}',1)">+</button></div>`).join('')+`</div>`;
+  }
+  el.innerHTML=html;
+  updVillager();
+}
+function incRole(id,d){ roleCounts[id]=Math.max(0,(roleCounts[id]||0)+d); const c=$('rc_'+id); if(c)c.textContent=roleCounts[id]; updVillager(); }
+function suggestRoles(){   // bộ vai cân bằng theo số người (Dân tự tính phần còn lại)
+  const n=players.length; roleCounts={};
+  if(n>=4){
+    roleCounts.wolf=Math.max(1,Math.floor(n/4));
+    roleCounts.seer=1;
+    if(n>=6) roleCounts.witch=1;
+    if(n>=7) roleCounts.bodyguard=1;
+    if(n>=9) roleCounts.hunter=1;
+    if(n>=11) roleCounts.cupid=1;
+  } else { roleCounts.wolf=1; }
+  renderRoleConfig();
+}
+function sumRoles(){ return Object.values(roleCounts).reduce((a,b)=>a+(b||0),0); }
+function updVillager(){ const el=$('villagerCount'); if(!el) return; const vil=players.length-sumRoles();
+  el.textContent = vil>=0 ? vil : `⚠️ dư ${-vil} vai`; el.style.color = vil>=0 ? '' : 'var(--red)';
+  if(isOwner) renderLobby(); }
+function renderLobby(){
+  if(!$('lobbyStatus')) return;
+  const others=players.filter(p=>p.id!==ownerId);
+  const readyN=others.filter(p=>p.ready).length;
+  const allReady = others.length===0 || readyN===others.length;
+  $('lobbyTitle').textContent = isOwner ? '👑 Bạn là chủ phòng' : '✅ Trong phòng';
+  $('lobbyStatus').textContent = others.length ? `${readyN}/${others.length} thành viên đã sẵn sàng` : 'Chưa có thành viên khác vào.';
+  show('ownerSetup', isOwner); show('memberWait', !isOwner); show('readyRow', !isOwner); show('startBtn', isOwner);
+  if(isOwner){
+    const rolesOk = sumRoles() <= players.length;
+    const canStart = allReady && players.length>=3 && rolesOk;
+    const b=$('startBtn'); b.disabled=!canStart;
+    b.textContent = players.length<3 ? '🚀 Cần tối thiểu 3 người'
+      : !rolesOk ? '🚀 Quá nhiều vai — giảm bớt'
+      : !allReady ? `⌛ Chờ ${others.length-readyN} người sẵn sàng`
+      : '🚀 Bắt đầu';
+  } else {
+    const me=players.find(p=>p.id===myId); myReady=!!(me&&me.ready);
+    const b=$('readyBtn'); b.textContent=myReady?'✅ Đã sẵn sàng (bấm để hủy)':'☐ Sẵn sàng'; b.classList.toggle('btn-primary',myReady);
+  }
+}
+function toggleReady(){ send({t:'ready',value:!myReady}); }
+function doStart(){
+  const counts={}; for(const [k,v] of Object.entries(roleCounts)) if(v>0) counts[k]=v;
+  const vil=players.length-Object.values(counts).reduce((a,b)=>a+b,0); if(vil>0) counts.villager=vil;
+  const settings={ actionSec:+$('t_action').value||60, discussionSec:+$('t_disc').value||45, voteSec:+$('t_vote').value||30 };
+  send({t:'start',counts,settings});
+}
+
+/* ── Overlay chuyển cảnh + hiệu ứng kết thúc ── */
+function sceneOverlay(icon,txt,type){ const ov=$('sceneOv'); $('ovIcon').textContent=icon; $('ovTxt').textContent=txt;
+  ov.classList.remove('ov-night','ov-day'); ov.classList.add('rise'); if(type) ov.classList.add('ov-'+type);
+  ov.style.background=type==='day'?'radial-gradient(circle at 50% 72%,#3a2a10,#0d0920 70%)':'radial-gradient(circle at 50% 72%,#1a1550,#08060f 70%)';
+  const ic=$('ovIcon'); ic.style.animation='none'; void ic.offsetWidth; ic.style.animation='';
+  ov.style.opacity='1'; ov.style.pointerEvents='auto'; if(sceneAPI)sceneAPI.setPhase(type);
+  setTimeout(()=>{ov.style.opacity='0';ov.style.pointerEvents='none';},2200); }
+function spawnFX(winner){ let l=$('fxLayer'); if(l)l.remove(); l=document.createElement('div'); l.id='fxLayer'; document.body.appendChild(l);
+  const ash=winner==='wolf'; const PAL=ash?['#8b1e2d','#5a5a5a','#3a3a3a']:winner==='third'?['#a855f7','#c084fc','#7c3aed']:['#fbbf24','#4ade80','#a855f7','#60a5fa','#f472b6'];
+  for(let i=0;i<(ash?40:60);i++){ const d=document.createElement('div'); d.className='fxp'; const sz=ash?3+Math.random()*3:6+Math.random()*6;
+    d.style.left=Math.random()*100+'vw'; d.style.width=sz+'px'; d.style.height=sz+'px'; d.style.background=PAL[i%PAL.length];
+    d.style.borderRadius=ash?'50%':(Math.random()<.5?'2px':'50%'); d.style.opacity=ash?.6:.9;
+    d.style.animationDuration=(ash?5+Math.random()*4:3+Math.random()*3)+'s'; d.style.animationDelay=(Math.random()*2)+'s'; l.appendChild(d); }
+  setTimeout(()=>{if(l)l.remove();},12000); }
+
+/* ── Thẻ vai: giữ để lật + nghiêng 3D ── */
+(function(){ const rc=$('roleCard'),tilt=$('roleTilt'),shine=$('roleShine'); if(!rc) return;
+  const on=e=>{e.preventDefault();rc.classList.add('show');}, off=()=>rc.classList.remove('show');
+  rc.addEventListener('pointerdown',on); rc.addEventListener('pointerup',off); rc.addEventListener('pointerleave',()=>{off();reset();}); rc.addEventListener('contextmenu',e=>e.preventDefault());
+  const MAX=11; function apply(px,py){ const r=rc.getBoundingClientRect(); const dx=(px-(r.left+r.width/2))/(r.width/2),dy=(py-(r.top+r.height/2))/(r.height/2);
+    tilt.style.setProperty('--ty',(Math.max(-1,Math.min(1,dx))*MAX).toFixed(2)+'deg'); tilt.style.setProperty('--tx',(-Math.max(-1,Math.min(1,dy))*MAX).toFixed(2)+'deg');
+    shine.style.setProperty('--gx',(((px-r.left)/r.width)*100).toFixed(1)+'%'); shine.style.setProperty('--gy',(((py-r.top)/r.height)*100).toFixed(1)+'%'); }
+  function reset(){ rc.classList.remove('tilting'); tilt.style.setProperty('--tx','0deg'); tilt.style.setProperty('--ty','0deg'); }
+  rc.addEventListener('pointermove',e=>{ rc.classList.add('tilting'); apply(e.clientX,e.clientY); });
+})();
+
+/* ── Nền 3D three.js ── */
+let sceneAPI=null;
+function glowTex(){const c=document.createElement('canvas');c.width=c.height=128;const g=c.getContext('2d');const gr=g.createRadialGradient(64,64,0,64,64,64);gr.addColorStop(0,'rgba(255,250,235,1)');gr.addColorStop(.25,'rgba(230,220,192,.6)');gr.addColorStop(1,'rgba(230,220,192,0)');g.fillStyle=gr;g.fillRect(0,0,128,128);return new THREE.CanvasTexture(c);}
+function cloudTex(){const c=document.createElement('canvas');c.width=128;c.height=64;const g=c.getContext('2d');const gr=g.createRadialGradient(64,32,0,64,32,60);gr.addColorStop(0,'rgba(255,255,255,.85)');gr.addColorStop(1,'rgba(255,255,255,0)');g.fillStyle=gr;g.beginPath();g.ellipse(64,32,60,26,0,0,Math.PI*2);g.fill();return new THREE.CanvasTexture(c);}
+function initScene(){ if(typeof THREE==='undefined'){return;} const host=$('scene'); if(!host||sceneAPI) return;
+  const W=()=>innerWidth,H=()=>innerHeight; const rn=new THREE.WebGLRenderer({antialias:true,alpha:true,powerPreference:'low-power'}); rn.setPixelRatio(Math.min(devicePixelRatio||1,1.6)); rn.setSize(W(),H()); host.appendChild(rn.domElement);
+  const sc=new THREE.Scene(); sc.fog=new THREE.FogExp2(0x0d0920,0.021); const cam=new THREE.PerspectiveCamera(60,W()/H(),0.1,120); cam.position.set(0,0,14);
+  const N=420,arr=new Float32Array(N*3); for(let i=0;i<N;i++){arr[i*3]=(Math.random()-.5)*70;arr[i*3+1]=(Math.random()-.15)*44;arr[i*3+2]=-12-Math.random()*34;}
+  const sg=new THREE.BufferGeometry(); sg.setAttribute('position',new THREE.BufferAttribute(arr,3)); const sm=new THREE.PointsMaterial({color:0xcfc6e8,size:0.14,transparent:true,opacity:.9,sizeAttenuation:true}); const stars=new THREE.Points(sg,sm); sc.add(stars);
+  const glow=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex(),color:0xe6dcc0,transparent:true,opacity:.95,blending:THREE.AdditiveBlending,depthWrite:false})); glow.scale.set(11,11,1); glow.position.set(8,6.5,-16); sc.add(glow);
+  const discMat=new THREE.MeshBasicMaterial({color:0xe6dcc0}); const disc=new THREE.Mesh(new THREE.CircleGeometry(2.3,48),discMat); disc.position.set(8,6.5,-15.5); sc.add(disc);
+  const cT=cloudTex(),clouds=[]; for(let i=0;i<5;i++){const mm=new THREE.SpriteMaterial({map:cT,color:0x2a2150,transparent:true,opacity:.5,depthWrite:false});const s=new THREE.Sprite(mm);const scl=15+Math.random()*13;s.scale.set(scl,scl*.5,1);s.position.set((Math.random()-.5)*54,-6+Math.random()*8,-8-Math.random()*12);s.userData.spd=.004+Math.random()*.01;clouds.push(s);sc.add(s);}
+  const shp=new THREE.Shape();shp.moveTo(-45,-22);shp.lineTo(-45,-7);let x=-45;while(x<45){x+=5+Math.random()*7;shp.lineTo(x,-7+Math.random()*3.2);}shp.lineTo(45,-22);shp.lineTo(-45,-22);
+  const ridge=new THREE.Mesh(new THREE.ShapeGeometry(shp),new THREE.MeshBasicMaterial({color:0x0a0718}));ridge.position.set(0,-8.5,-6);sc.add(ridge);
+  let px=0,py=0,tx=0,ty=0,raf=null,run=true; const onP=e=>{tx=e.clientX/W()-.5;ty=e.clientY/H()-.5;}; addEventListener('pointermove',onP,{passive:true});
+  const rz=()=>{rn.setSize(W(),H());cam.aspect=W()/H();cam.updateProjectionMatrix();}; addEventListener('resize',rz);
+  function frame(t){ if(!run){raf=null;return;} raf=requestAnimationFrame(frame); px+=(tx-px)*.05;py+=(ty-py)*.05;cam.position.x=px*2.4;cam.position.y=-py*1.4;cam.lookAt(0,0,-10);
+    stars.rotation.z+=0.0002; sm.opacity=.72+.22*Math.sin(t*0.001); clouds.forEach(c=>{c.position.x+=c.userData.spd;if(c.position.x>32)c.position.x=-32;}); rn.render(sc,cam); }
+  raf=requestAnimationFrame(frame);
+  const vis=()=>{ if(document.visibilityState==='visible'){ if(!run){run=true; if(!raf) raf=requestAnimationFrame(frame);} } else run=false; }; document.addEventListener('visibilitychange',vis);
+  sceneAPI={ setPhase(ph){ const night=ph!=='day'; discMat.color.set(night?0xe6dcc0:0xffd27a); glow.material.color.set(night?0xe6dcc0:0xffb84d); sc.fog.color.set(night?0x0d0920:0x241a2e); sm.opacity=night?.9:.16; },
+    destroy(){ run=false; if(raf)cancelAnimationFrame(raf); removeEventListener('pointermove',onP); removeEventListener('resize',rz); document.removeEventListener('visibilitychange',vis); try{rn.dispose();}catch(e){} host.innerHTML=''; } };
+}
+let bgOn=(localStorage.getItem('masoi_ws_bg')!=='0');
+function applyBg(){ const host=$('scene'); if(!host) return; if(bgOn){ host.style.display='block'; if(!sceneAPI)initScene(); } else { host.style.display='none'; if(sceneAPI){sceneAPI.destroy();sceneAPI=null;} } const b=$('bgBtn'); if(b)b.textContent=bgOn?'🌌':'⬛'; }
+function toggleBg(){ bgOn=!bgOn; localStorage.setItem('masoi_ws_bg',bgOn?'1':'0'); applyBg(); }
+document.addEventListener('DOMContentLoaded',applyBg); if(document.readyState!=='loading') applyBg();
+</script>
+</body>
+</html>

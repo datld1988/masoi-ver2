@@ -13,3 +13,5 @@ services:
     envVars:
       - key: NODE_VERSION
         value: "20"
+      - key: FIREBASE_SERVICE_ACCOUNT
+        sync: false   # Dán nội dung JSON service account vào Render dashboard (không commit lên git)

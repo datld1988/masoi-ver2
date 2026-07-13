@@ -13,11 +13,12 @@ const now = () => Date.now();
 const CHATS = ['main', 'wolf', 'dead'];
 
 export class Room {
-  constructor({ id, send, engine = E, scheduler = defaultScheduler, settings = {} }) {
+  constructor({ id, send, engine = E, scheduler = defaultScheduler, settings = {}, onGameOver = null }) {
     this.id = id;
     this.send = send;                 // (playerId, msgObj) => void
     this.E = engine;
     this.sched = scheduler;
+    this.onGameOver = onGameOver;     // (winner, reveal, players) => void — hook cho stats
     this.settings = { actionSec: 60, discussionSec: 45, voteSec: 30, lgCaughtChance: 0, ...settings };
     this.players = [];                // [{ id, name, connected }]  (thứ tự = chỉ số engine)
     this.phase = 'lobby';             // lobby | night | day | ended
@@ -370,8 +371,9 @@ export class Room {
     this.phase = 'ended';
     this.voteOpen = false;
     this.clearTimer();
-    const reveal = this.state.players.map((p) => { const r = this.E.roleOf(p.roleId); return { name: p.name, role: r.name, alive: p.alive }; });
+    const reveal = this.state.players.map((p) => { const r = this.E.roleOf(p.roleId); return { name: p.name, role: r.name, team: r.team, alive: p.alive }; });
     this.broadcast({ t: 'gameOver', winner: win.winner, desc: win.desc, reveal, history: this.history });
+    if (this.onGameOver) this.onGameOver(win.winner, reveal, this.players);
   }
 
   /* ── VÁN MỚI CÙNG NHÓM: giữ người chơi, xoá ván cũ, về phòng chờ ── */
