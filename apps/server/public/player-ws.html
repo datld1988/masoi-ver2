@@ -309,7 +309,7 @@ input:-webkit-autofill,input:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 100
 
     <section class="card hidden" id="voteBox">
       <div class="title">🪢 Bỏ phiếu treo <span class="sb-time" id="voteTimer" style="font-weight:400;font-size:.8rem"></span></div>
-      <div class="tgrid" id="voteGrid"></div>
+      <div class="tava-grid" id="voteGrid"></div>
       <div class="muted" id="voteStatus" style="margin-top:8px"></div>
     </section>
 
@@ -669,9 +669,25 @@ function renderPrompt(){
   if(p.mode==='witch'){
     $('pDesc').textContent='Bạn không biết Sói cắn ai. Chọn cứu/độc hoặc bỏ. Mỗi bình 1 lần cả ván.';
     let html='';
-    if(!p.healUsed) html+=`<div class="muted" style="margin:4px 0 6px">💊 Cứu (chọn/bỏ):</div><div class="tgrid">`+(p.options||[]).map(o=>`<button class="tbtn ${witchSel.heal===o.id?'sel':''}" onclick="pickWitch('heal','${o.id}')"><span class="tseat">${seatNo(o.id)}</span>${esc(o.name)}</button>`).join('')+`</div>`;
+    const witchTava=(key,opts)=>opts.map(o=>`
+      <div class="tava${witchSel[key]===o.id?' sel':''}" onclick="pickWitch('${key}','${o.id}')">
+        <div class="tava-sel-ring"></div>
+        <div class="tava-check">${key==='heal'?'💊':'☠️'}</div>
+        <div class="ptile-forest"></div>
+        <div class="ptile-header">
+          <span class="ptile-seat">${seatNo(o.id)}</span>
+          <span class="ptile-name">${esc(o.name)}</span>
+        </div>
+        <div class="ptile-body">
+          <div class="ptile-ava" style="background:${avaColor(o.name)}">
+            <span class="ptile-ava-init">${esc(avaInit(o.name))}</span>
+            <img src="${dicebearUrl(o.name)}" alt="" loading="lazy" onerror="this.style.display='none'">
+          </div>
+        </div>
+      </div>`).join('');
+    if(!p.healUsed) html+=`<div class="muted" style="margin:4px 0 6px">💊 Cứu — chạm để chọn/bỏ:</div><div class="tava-grid">${witchTava('heal',p.options||[])}</div>`;
     else html+='<div class="muted">💊 Bình cứu đã dùng hết.</div>';
-    if(!p.poisonUsed) html+=`<div class="muted" style="margin:8px 0 6px">☠️ Độc (chọn/bỏ):</div><div class="tgrid">`+(p.options||[]).map(o=>`<button class="tbtn ${witchSel.poison===o.id?'sel':''}" onclick="pickWitch('poison','${o.id}')"><span class="tseat">${seatNo(o.id)}</span>${esc(o.name)}</button>`).join('')+`</div>`;
+    if(!p.poisonUsed) html+=`<div class="muted" style="margin:10px 0 6px">☠️ Độc — chạm để chọn/bỏ:</div><div class="tava-grid">${witchTava('poison',p.options||[])}</div>`;
     else html+='<div class="muted" style="margin-top:8px">☠️ Bình độc đã dùng hết.</div>';
     $('pBody').innerHTML=html; $('pConfirm').disabled=false;
     show('pConfirm',true); show('pSkip',true);
@@ -781,8 +797,25 @@ function renderFinalHistory(hist){
     return histCard(`☀️ Ngày ${h.no}`,sum,body,'#3a2a0e');
   }).join('');
 }
-function drawVote(){ $('voteGrid').innerHTML=voteOptions.map(o=>`<button class="tbtn ${myVote===o.id?'sel':''}" onclick="castVote('${o.id}')"><span class="tseat">${seatNo(o.id)}</span>${esc(o.name)}</button>`).join(''); }
-function castVote(id){ myVote=id; send({t:'vote',target:id}); drawVote(); $('voteStatus').textContent='Đã vote: '+nameOf(id); }
+function drawVote(){
+  $('voteGrid').innerHTML=voteOptions.map(o=>`
+    <div class="tava${myVote===o.id?' sel':''}" onclick="castVote('${o.id}')">
+      <div class="tava-sel-ring"></div>
+      <div class="tava-check">✓</div>
+      <div class="ptile-forest"></div>
+      <div class="ptile-header">
+        <span class="ptile-seat">${seatNo(o.id)}</span>
+        <span class="ptile-name">${esc(o.name)}</span>
+      </div>
+      <div class="ptile-body">
+        <div class="ptile-ava" style="background:${avaColor(o.name)}">
+          <span class="ptile-ava-init">${esc(avaInit(o.name))}</span>
+          <img src="${dicebearUrl(o.name)}" alt="" loading="lazy" onerror="this.style.display='none'">
+        </div>
+      </div>
+    </div>`).join('');
+}
+function castVote(id){ myVote=id; send({t:'vote',target:id}); drawVote(); $('voteStatus').textContent='✅ Đã vote: '+nameOf(id); }
 
 function renderEnd(m){
   show('endBox',true); show('promptBox',false); show('sleepBox',false); show('voteBox',false);
