@@ -89,6 +89,27 @@ input:-webkit-autofill,input:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 100
   border-radius:4px;color:rgba(255,255,255,.4);font-size:.6rem;cursor:pointer;padding:2px 4px;line-height:1;
   transition:color .15s,background .15s;}
 .ptile-report:hover{color:var(--red);background:rgba(0,0,0,.55);}
+/* ── Target picker avatar grid (chọn mục tiêu ban đêm) ── */
+.tava-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:6px;margin-bottom:4px;}
+.tava{position:relative;border-radius:14px;overflow:hidden;aspect-ratio:3/4;
+  background:linear-gradient(180deg,#5b9ec9 0%,#2f6b9a 38%,#1a3d5c 68%,#0c1e2e 100%);
+  border:2px solid #2a4a6a;cursor:pointer;user-select:none;
+  transition:border-color .12s,transform .1s,box-shadow .12s;}
+.tava:active{transform:scale(.94);}
+.tava.sel{border-color:var(--accent);box-shadow:0 0 0 3px rgba(168,85,247,.5);}
+/* Viền sáng khi được chọn */
+.tava-sel-ring{position:absolute;inset:0;border-radius:12px;z-index:10;pointer-events:none;
+  border:3px solid var(--accent);opacity:0;transition:opacity .15s;}
+.tava.sel .tava-sel-ring{opacity:1;}
+/* Checkmark overlay khi selected */
+.tava-check{position:absolute;top:4px;right:4px;z-index:11;width:20px;height:20px;border-radius:50%;
+  background:var(--accent);display:flex;align-items:center;justify-content:center;
+  font-size:.7rem;color:#fff;opacity:0;transform:scale(.5);transition:opacity .15s,transform .15s;}
+.tava.sel .tava-check{opacity:1;transform:scale(1);}
+/* Link bỏ lượt nhỏ */
+.tava-skip-link{display:block;text-align:center;color:var(--muted);font-size:.78rem;
+  padding:6px 0 2px;cursor:pointer;background:none;border:none;width:100%;transition:color .15s;}
+.tava-skip-link:hover{color:var(--text);}
 /* Prompt + vòng đếm ngược */
 .ringWrap{position:relative;width:84px;height:84px;margin:2px auto 12px;}
 .ring{width:84px;height:84px;transform:rotate(-90deg);display:block;} .ring circle{fill:none;stroke-width:6;stroke-linecap:round;}
@@ -270,7 +291,7 @@ input:-webkit-autofill,input:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 100
       <div class="ringWrap" id="pRingWrap"><svg class="ring" viewBox="0 0 84 84"><circle class="ring-bg" cx="42" cy="42" r="36"></circle><circle class="ring-fg" id="pRing" cx="42" cy="42" r="36"></circle></svg><div class="ring-num" id="pTimer">--</div></div>
       <div id="pBody"></div>
       <button class="btn btn-danger" id="pConfirm" onclick="submitAction()">✔️ Xác nhận</button>
-      <button class="btn btn-ghost" onclick="submitSkip()">⏭️ Bỏ lượt</button>
+      <button class="btn btn-ghost" id="pSkip" onclick="submitSkip()">⏭️ Bỏ lượt</button>
       <div class="err" id="pErr"></div>
     </section>
 
@@ -653,11 +674,30 @@ function renderPrompt(){
     if(!p.poisonUsed) html+=`<div class="muted" style="margin:8px 0 6px">☠️ Độc (chọn/bỏ):</div><div class="tgrid">`+(p.options||[]).map(o=>`<button class="tbtn ${witchSel.poison===o.id?'sel':''}" onclick="pickWitch('poison','${o.id}')"><span class="tseat">${seatNo(o.id)}</span>${esc(o.name)}</button>`).join('')+`</div>`;
     else html+='<div class="muted" style="margin-top:8px">☠️ Bình độc đã dùng hết.</div>';
     $('pBody').innerHTML=html; $('pConfirm').disabled=false;
+    show('pConfirm',true); show('pSkip',true);
   } else {
     const max=p.max||1;
-    $('pDesc').textContent = p.stepType==='cupid' ? '💘 Ghép đôi: chọn ĐÚNG 2 người.' : (max>1?`Chọn tối đa ${max} người rồi Xác nhận.`:'Chọn mục tiêu rồi Xác nhận.');
-    $('pBody').innerHTML=`<div class="tgrid">`+opts.map(o=>`<button class="tbtn ${sel.includes(o.id)?'sel':''}" onclick="togglePick('${o.id}')"><span class="tseat">${seatNo(o.id)}</span>${esc(o.name)}</button>`).join('')+`</div>`;
-    $('pConfirm').disabled = p.stepType==='cupid' ? sel.length!==2 : sel.length===0;
+    $('pDesc').textContent = p.stepType==='cupid'
+      ? `💘 Ghép đôi: chạm chọn đúng 2 người (${sel.length}/2).`
+      : (max>1 ? `Chạm chọn ${sel.length}/${max} người.` : 'Chạm vào để chọn mục tiêu.');
+    $('pBody').innerHTML=`<div class="tava-grid">`+opts.map(o=>`
+      <div class="tava${sel.includes(o.id)?' sel':''}" onclick="tapTarget('${o.id}')">
+        <div class="tava-sel-ring"></div>
+        <div class="tava-check">✓</div>
+        <div class="ptile-forest"></div>
+        <div class="ptile-header">
+          <span class="ptile-seat">${seatNo(o.id)}</span>
+          <span class="ptile-name">${esc(o.name)}</span>
+        </div>
+        <div class="ptile-body">
+          <div class="ptile-ava" style="background:${avaColor(o.name)}">
+            <span class="ptile-ava-init">${esc(avaInit(o.name))}</span>
+            <img src="${dicebearUrl(o.name)}" alt="" loading="lazy" onerror="this.style.display='none'">
+          </div>
+        </div>
+      </div>`).join('')+`</div>
+      <button class="tava-skip-link" onclick="submitSkip()">⏭ Bỏ lượt (hoặc chờ hết giờ)</button>`;
+    show('pConfirm',false); show('pSkip',false);
   }
   clearInterval(promptTimerInt); const ring=$('pRing'),wrap=$('pRingWrap'); ring.style.strokeDasharray=RING_C;
   if(p.deadline&&promptTotal>0){ const tick=()=>{ const s=Math.max(0,Math.ceil((p.deadline-Date.now())/1000)); $('pTimer').textContent=s;
@@ -669,6 +709,23 @@ function renderPrompt(){
 function togglePick(id){ const max=(curPrompt&&curPrompt.max)||1; const i=sel.indexOf(id);
   if(i>=0) sel.splice(i,1); else if(max===1) sel=[id]; else if(sel.length<max) sel.push(id);
   renderPrompt(); }
+function tapTarget(id){
+  if(!curPrompt) return;
+  const max=curPrompt.max||1;
+  const i=sel.indexOf(id);
+  if(i>=0){
+    // Chạm lần 2 vào người đã chọn → bỏ chọn
+    sel.splice(i,1); renderPrompt();
+  } else if(max===1){
+    // Single-select: chọn & xác nhận ngay (delay nhỏ để thấy highlight)
+    sel=[id]; renderPrompt();
+    setTimeout(submitAction,160);
+  } else {
+    // Multi-select (Cupid=2, Sói+SóiCon=2): thêm vào, auto-confirm khi đủ
+    sel.push(id); renderPrompt();
+    if(sel.length>=max) setTimeout(submitAction,160);
+  }
+}
 function pickWitch(k,id){ witchSel[k]=witchSel[k]===id?null:id; renderPrompt(); }
 function submitAction(){ if(!curPrompt) return;
   if(curPrompt.mode==='witch') send({t:'action',action:{heal:witchSel.heal,poison:witchSel.poison}});
