@@ -149,28 +149,74 @@ export class Room {
   actorsFor(type) {
     const B = this.E.BITING_WOLF_IDS;
     return this.aliveList()
-      .filter(({ p }) => (type === 'wolf' ? B.includes(p.roleId) : p.roleId === type))
+      .filter(({ p }) => (type === 'wolf'
+        ? B.includes(p.roleId) || (p.roleId === 'deserter' && this.state.flags.deserterActive)
+        : p.roleId === type))
       .map(x => x.i);
   }
-  promptOptions() { return this.aliveList().map(x => ({ id: this.pid(x.i), name: x.p.name })); }
+  promptOptions(includeDeadForDigger = false) {
+    if (includeDeadForDigger)
+      return this.state.players.map((p, i) => ({ id: this.pid(i), name: p.name, dead: !p.alive }));
+    return this.aliveList().map(x => ({ id: this.pid(x.i), name: x.p.name }));
+  }
   maxTargets(type) {
-    if (type === 'cupid') return 2;
-    if (type === 'wolf') return 1 + (this.state && this.state.flags.wolfCubBonusKill ? 1 : 0);
+    const f = this.state && this.state.flags;
+    if (type === 'cupid' || type === 'balancer' || type === 'detective' || type === 'switcher') return 2;
+    if (type === 'fox' || type === 'hoodlum') return 3;
+    if (type === 'fluteplayer') return 2;
+    if (type === 'wolf') return 1 + (f && f.wolfCubBonusKill ? 1 : 0) + (f && f.direwolfBonus ? 1 : 0);
     return 1;
   }
   promptForActor(type, options, deadline) {
     if (type === 'witch')
       return { t: 'prompt', stepType: 'witch', mode: 'witch', options, deadline, healUsed: this.state.flags.witchHealUsed, poisonUsed: this.state.flags.witchPoisonUsed };
+    // Roles that need dead players in options
+    if (type === 'gravedigger' || type === 'medium' || type === 'graverobber')
+      return { t: 'prompt', stepType: type, mode: 'pick', options: this.promptOptions(true), deadline, max: 1, deadOnly: true };
     return { t: 'prompt', stepType: type, mode: 'pick', options, deadline, max: this.maxTargets(type) };
   }
   startNight() {
     this.nd = this.E.newNightData();
     this.cur = null;
+    // Reset per-night transient flags
+    if (this.state.flags) {
+      this.state.flags.hypnoTarget = null;
+      this.state.flags.blackmailTarget = null;
+      this.state.flags.diplomatProtected = null;
+      this.state.flags.kingDiedThisNight = false;
+    }
     this.broadcast({ t: 'scene', phase: 'night', nightNo: this.state.night });
     const steps = this.E.buildNightSteps(this.state).map(s => s.type);
-    for (const t of steps)   // Cô Bé Ti Hí: auto-MC quyết định ngay
-      if (t === 'littlegirl') { const caught = Math.random() < (this.settings.lgCaughtChance || 0); this.E.applyNightAction(this.state, this.nd, 'littlegirl', { caught }); }
-    this.startWave(steps.filter(t => t !== 'littlegirl'));
+    for (const t of steps) {
+      if (t === 'littlegirl') {
+        const caught = Math.random() < (this.settings.lgCaughtChance || 0);
+        this.E.applyNightAction(this.state, this.nd, 'littlegirl', { caught });
+      }
+      // Hinter: auto-assign private hint
+      if (t === 'hinter') {
+        const hIdx = this.state.players.findIndex(p => p.alive && p.roleId === 'hinter');
+        const wolves = this.aliveList().filter(x => this.E.WOLF_IDS.includes(x.p.roleId));
+        if (hIdx >= 0 && wolves.length) {
+          const pick = wolves[Math.floor(Math.random() * wolves.length)];
+          const firstChar = pick.p.name.charAt(0).toUpperCase();
+          this.send(this.pid(hIdx), { t: 'privateResult', text: `💡 Kẻ Gợi Ý: chữ cái đầu tên 1 Sói còn sống là "${firstChar}"` });
+        }
+        this.E.applyNightAction(this.state, this.nd, 'hinter', { targets: [] });
+      }
+      // BountyHunter night 1: auto-assign random target
+      if (t === 'bountyhunter' && this.state.night === 1 && this.state.flags.bountyTarget == null) {
+        const bhIdx = this.state.players.findIndex(p => p.alive && p.roleId === 'bountyhunter');
+        const cands = this.aliveList().filter(x => x.p.roleId !== 'bountyhunter');
+        if (bhIdx >= 0 && cands.length) {
+          const pick = cands[Math.floor(Math.random() * cands.length)];
+          this.state.flags.bountyTarget = pick.i;
+          this.send(this.pid(bhIdx), { t: 'privateResult', text: `🎖️ Nhiệm vụ bí mật: tiêu diệt ${pick.p.name}!` });
+          this.E.applyNightAction(this.state, this.nd, 'bountyhunter', { targets: [pick.i] });
+        }
+      }
+    }
+    const autoSteps = ['littlegirl','hinter','bountyhunter'];
+    this.startWave(steps.filter(t => !autoSteps.includes(t)));
   }
   startWave(types) {
     const cur = { pending: new Set(), stepByActor: {}, wolfActors: new Set(), wolfVotes: {}, wolfResolved: false };
@@ -204,9 +250,22 @@ export class Room {
     else payload = { targets: (action.targets || []).map(t => this.idx(t)) };
 
     const res = this.E.applyNightAction(this.state, this.nd, type, payload);
-    if (!res.ok) { this.send(pid, { t: 'error', message: res.error }); return; }   // giữ pending → cho làm lại
-    if (type === 'seer' && res.private)
-      this.send(pid, { t: 'privateResult', text: `Soi ${res.private.name}: ${res.private.seen === 'wolf' ? 'LÀ MA SÓI' : 'KHÔNG phải Sói'}` });
+    if (!res.ok) { this.send(pid, { t: 'error', message: res.error }); return; }
+    if (res.private) {
+      const priv = res.private;
+      let txt;
+      if (type === 'seer') txt = `🔮 Soi ${priv.name}: ${priv.seen === 'wolf' ? '🔴 LÀ MA SÓI' : '🔵 KHÔNG phải Sói'}`;
+      else if (type === 'fox') txt = `🦊 Nhóm ${priv.names.join(', ')}: ${priv.hasWolf ? '🔴 CÓ SÓI' : '🔵 Không có Sói'}`;
+      else if (type === 'detective') txt = `🕵️ ${priv.names.join(' & ')}: ${priv.same ? 'CÙNG phe' : 'KHÁC phe'}`;
+      else if (type === 'gravedigger') txt = `⚰️ ${priv.name} là ${priv.icon} ${priv.role}`;
+      else if (type === 'medium') txt = `🕯️ ${priv.name}: ${priv.isWolf ? '🔴 LÀ SÓI' : '🔵 Không phải Sói'}`;
+      else if (type === 'tracker') txt = `🔭 ${priv.name}: ${priv.active ? '🟡 RỜI NHÀ (dùng kỹ năng)' : '🔵 Ở nhà (không dùng kỹ năng)'}`;
+      else if (type === 'sorcerer') txt = `🧿 ${priv.name}: ${priv.isMystic ? '🔴 TIÊN TRI / PHÙ THỦY' : '🔵 Không phải'}`;
+      else if (type === 'wolfseer') txt = `🔮 Sói Tiên Tri: ${priv.name} là ${priv.icon} ${priv.role} (${priv.team === 'wolf' ? '🔴 SÓI' : '🔵 Dân'})`;
+      else if (type === 'copycat') txt = `🪞 Bạn đã sao chép thành: ${priv.icon} ${priv.copied}`;
+      else if (type === 'graverobber') txt = `⛏️ Bạn kế thừa role: ${priv.role} (phe ${priv.team})`;
+      if (txt) this.send(pid, { t: 'privateResult', text: txt });
+    }
     this.done(i);
   }
   done(i) {
@@ -222,7 +281,8 @@ export class Room {
     const tally = {};
     Object.values(this.cur.wolfVotes).forEach(ts => ts.forEach(t => { tally[t] = (tally[t] || 0) + 1; }));
     const ranked = Object.entries(tally).sort((a, b) => b[1] - a[1]);
-    const maxK = 1 + (this.state.flags.wolfCubBonusKill ? 1 : 0);
+    const f = this.state.flags;
+    const maxK = 1 + (f.wolfCubBonusKill ? 1 : 0) + (f.direwolfBonus ? 1 : 0);
     const targets = ranked.slice(0, maxK).map(r => +r[0]);
     if (targets.length) this.E.applyNightAction(this.state, this.nd, 'wolf', { targets });
   }
@@ -241,30 +301,87 @@ export class Room {
     const nr = i => (s.players[i] ? `${s.players[i].name} (${this.E.roleOf(s.players[i].roleId).name})` : '?');
     const ev = [];
     if (s.night === 1 && s.cupidPair && s.cupidPair.length === 2) ev.push(`💘 Cupid ghép đôi: ${nr(s.cupidPair[0])} & ${nr(s.cupidPair[1])}`);
-    if (nd.wolfTargets && nd.wolfTargets.length) ev.push(`🐺 Sói chọn cắn: ${nd.wolfTargets.map(nr).join(', ')}`);
+    if (s.night === 1 && nd.wildchildTarget != null) ev.push(`🐾 Dã Nhân chọn thần tượng: ${nr(nd.wildchildTarget)}`);
+    if (s.night === 1 && nd.direwolfTarget != null) ev.push(`😡 Sói Cuồng Nộ chọn tri kỷ: ${nr(nd.direwolfTarget)}`);
+    if (s.night === 1 && nd.balancerPair && nd.balancerPair.length === 2) ev.push(`⚖️ Kẻ Cân Bằng liên kết: ${nr(nd.balancerPair[0])} & ${nr(nd.balancerPair[1])}`);
+    if (nd.wolfTargets && nd.wolfTargets.length) ev.push(`🐺 Sói cắn: ${nd.wolfTargets.map(nr).join(', ')}`);
+    if (nd.switcherTargets && nd.switcherTargets.length === 2) ev.push(`🔄 Kẻ Đánh Tráo hoán đổi: ${nr(nd.switcherTargets[0])} ↔ ${nr(nd.switcherTargets[1])}`);
     if (nd.whitewolfTarget != null) ev.push(`🤍 Sói Trắng cắn: ${nr(nd.whitewolfTarget)}`);
+    if (nd.hellhoundTarget != null) ev.push(`🔥 Sói Lửa đốt: ${nr(nd.hellhoundTarget)}`);
+    if (nd.poisonwolfTarget != null) ev.push(`🧪 Sói Độc phun: ${nr(nd.poisonwolfTarget)}`);
+    if (nd.bigbadwolfTarget != null) ev.push(`💪 Sói Khổng Lồ cắn thêm: ${nr(nd.bigbadwolfTarget)}`);
+    if (nd.cursedwolfTarget != null) ev.push(`🌀 Sói Nguyền nguyền: ${nr(nd.cursedwolfTarget)}`);
     if (nd.bodyguardTarget != null) ev.push(`🛡️ Bảo Vệ bảo vệ: ${nr(nd.bodyguardTarget)}`);
     if (nd.doctorTarget != null) ev.push(`💉 Bác Sĩ cứu: ${nr(nd.doctorTarget)}`);
+    if (nd.icewitchTarget != null) ev.push(`❄️ Nữ Phù Thủy Băng Giá đóng băng: ${nr(nd.icewitchTarget)}`);
     if (nd.seerTarget != null) ev.push(`🔮 Tiên Tri soi ${nr(nd.seerTarget)} → ${nd.seerResult === 'wolf' ? '🔴 MA SÓI' : '🔵 Không phải Sói'}`);
+    if (nd.foxTargets && nd.foxTargets.length === 3) ev.push(`🦊 Cáo soi nhóm: ${nd.foxTargets.map(nr).join(', ')} → ${nd.foxResult === 'wolf' ? '🔴 CÓ SÓI' : '🔵 Không có Sói'}`);
+    if (nd.detectiveTargets && nd.detectiveTargets.length === 2) ev.push(`🕵️ Thám Tử: ${nr(nd.detectiveTargets[0])} & ${nr(nd.detectiveTargets[1])} → ${nd.detectiveResult === 'same' ? 'CÙNG phe' : 'KHÁC phe'}`);
+    if (nd.diplomatTarget != null) ev.push(`🕊️ Nhà Ngoại Giao bảo hộ: ${nr(nd.diplomatTarget)}`);
     if (nd.witchHealTarget != null) ev.push(`💊 Phù Thủy cứu: ${nr(nd.witchHealTarget)}`);
     if (nd.witchPoison != null) ev.push(`☠️ Phù Thủy đầu độc: ${nr(nd.witchPoison)}`);
     if (nd.hunterTarget != null) ev.push(`🏹 Thợ Săn bắn: ${nr(nd.hunterTarget)}`);
+    if (nd.gunsmithTarget != null) ev.push(`🔫 Xạ Thủ bắn: ${nr(nd.gunsmithTarget)}`);
+    if (nd.priestTarget != null) ev.push(`✝️ Linh Mục ném nước thánh: ${nr(nd.priestTarget)}`);
     if (nd.skTarget != null) ev.push(`🔪 Sát Nhân giết: ${nr(nd.skTarget)}`);
+    if (nd.nighthunterTarget != null) ev.push(`🌙 Kẻ Săn Đêm nhắm: ${nr(nd.nighthunterTarget)}`);
+    if (nd.fluteTargets && nd.fluteTargets.length) ev.push(`🪈 Chàng Thổi Sáo thôi miên: ${nd.fluteTargets.map(nr).join(' & ')}`);
+    if (nd.gatekeeperTarget != null) ev.push(`🚪 Kẻ Gác Cổng chặn: ${nr(nd.gatekeeperTarget)}`);
+    if (nd.blackmailTarget != null) ev.push(`📬 Kẻ Tống Tiền tống tiền: ${nr(nd.blackmailTarget)}`);
+    if (nd.assassinPickTarget != null) ev.push(`🗡️ Kẻ Ám Sát chọn mục tiêu bí mật (đêm ${s.flags.assassinKillNight})`);
     return ev;
   }
   morning() {
     if (this.phase !== 'night') return;
     this.clearTimer();
     this.cur = null;
-    const actions = this.nightEvents();              // dựng trước khi phân giải (vai ở thời điểm hành động)
+    const actions = this.nightEvents();
     const r = this.E.resolveMorning(this.state, this.nd);
-    // Lịch sử chi tiết (có vai + hành động đêm) — chỉ hiện khi kết thúc
     this.history.push({
       type: 'night', no: this.state.night,
       actions,
       deaths: r.deaths.map(i => ({ name: this.state.players[i].name, role: this.E.roleOf(this.state.players[i].roleId).name })),
     });
-    // Thông báo CÔNG KHAI: chỉ tên người chết, KHÔNG lộ vai (vai chỉ lộ khi kết thúc).
+    // Gửi private results từ engine
+    if (r.privateResults) {
+      for (const { idx, text } of r.privateResults)
+        this.send(this.pid(idx), { t: 'privateResult', text });
+    }
+    // Xử lý events đặc biệt
+    if (r.events) {
+      for (const ev of r.events) {
+        if (ev.startsWith('avengerRevenge:')) {
+          // Auto pick random alive non-avenger
+          const cands = this.aliveList();
+          if (cands.length) {
+            const pick = cands[Math.floor(Math.random() * cands.length)];
+            const rv = this.E.applyAvengerCurse(this.state, pick.i);
+            r.publicLines.push(...rv.lines);
+            if (rv.win && !r.win) r.win = rv.win;
+          }
+        }
+      }
+    }
+    // Bounty Hunter win notification (target just died?)
+    const bt = this.state.flags.bountyTarget;
+    if (bt != null && !this.state.players[bt].alive && r.deaths.includes(bt)) {
+      const bhIdx = this.state.players.findIndex(p => p.alive && p.roleId === 'bountyhunter');
+      if (bhIdx >= 0) {
+        this.send(this.pid(bhIdx), { t: 'privateResult', text: `🎖️ Mục tiêu của bạn đã chết – THẮNG RIÊNG!` });
+        r.publicLines.push(`🎖️ Thợ Săn Tiền Thưởng hoàn thành nhiệm vụ!`);
+      }
+      this.state.flags.bountyTarget = null;
+    }
+    // Challenger win notification
+    const ct = this.state.flags.challengerTarget;
+    if (ct != null && !this.state.players[ct].alive && r.deaths.includes(ct)) {
+      const chalIdx = this.state.players.findIndex(p => p.alive && p.roleId === 'challenger');
+      if (chalIdx >= 0) {
+        this.send(this.pid(chalIdx), { t: 'privateResult', text: `🎯 Kẻ thù của bạn đã chết – THẮNG RIÊNG!` });
+        r.publicLines.push(`🎯 Kẻ Thách Thức hoàn thành thách thức!`);
+      }
+      this.state.flags.challengerTarget = null;
+    }
     const deadNames = r.deaths.map(i => this.state.players[i].name);
     const lines = deadNames.length
       ? [`💀 ${deadNames.join(', ')} đã chết đêm qua.`]
@@ -322,16 +439,30 @@ export class Room {
       else if (r.blocked) lines = [`🪢 ${name} bị đưa lên giá treo nhưng thoát chết!`];
       else lines = [`🪢 ${name} đã bị treo cổ.`];
       const dayEntry = { type: 'day', no: this.state.day, target: { name, role }, votes: voteLines, blocked: !!r.blocked, joker: !!(r.win && r.win.reason === 'joker'), dragged: null };
-      if (r.events && r.events.includes('hunterwolfRevenge')) {
-        const cand = this.aliveList().filter(x => x.i !== top);
-        if (cand.length) {
-          const pick = cand[Math.floor(Math.random() * cand.length)].i;
-          const rv = this.E.applyRevenge(this.state, pick);
-          lines.push(`💥 ${this.state.players[pick].name} bị kéo chết theo!`);
-          dayEntry.dragged = { name: this.state.players[pick].name, role: this.E.roleOf(this.state.players[pick].roleId).name };
-          this.history.push(dayEntry);
-          if (rv.win) { this.broadcast({ t: 'day', lines }); return this.gameOver(rv.win); }
-        } else this.history.push(dayEntry);
+      if (r.events && r.events.some(e => e === 'hunterwolfRevenge' || e.startsWith('avengerRevenge'))) {
+        let postWin = null;
+        for (const ev of r.events) {
+          if (ev === 'hunterwolfRevenge') {
+            const cand = this.aliveList().filter(x => x.i !== top);
+            if (cand.length) {
+              const pick = cand[Math.floor(Math.random() * cand.length)].i;
+              const rv = this.E.applyRevenge(this.state, pick);
+              lines.push(`💥 ${this.state.players[pick].name} bị kéo chết theo!`);
+              dayEntry.dragged = { name: this.state.players[pick].name, role: this.E.roleOf(this.state.players[pick].roleId).name };
+              if (rv.win) postWin = rv.win;
+            }
+          } else if (ev.startsWith('avengerRevenge:')) {
+            const cands = this.aliveList();
+            if (cands.length) {
+              const pick = cands[Math.floor(Math.random() * cands.length)].i;
+              const rv = this.E.applyAvengerCurse(this.state, pick);
+              lines.push(...rv.lines);
+              if (rv.win) postWin = rv.win;
+            }
+          }
+        }
+        this.history.push(dayEntry);
+        if (postWin) { this.broadcast({ t: 'day', lines }); return this.gameOver(postWin); }
       } else this.history.push(dayEntry);
       if (r.win) { this.broadcast({ t: 'day', lines }); return this.gameOver(r.win); }
     } else {

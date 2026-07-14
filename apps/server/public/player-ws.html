@@ -693,10 +693,37 @@ function renderPrompt(){
     show('pConfirm',true); show('pSkip',true);
   } else {
     const max=p.max||1;
-    $('pDesc').textContent = p.stepType==='cupid'
-      ? `💘 Ghép đôi: chạm chọn đúng 2 người (${sel.length}/2).`
-      : (max>1 ? `Chạm chọn ${sel.length}/${max} người.` : 'Chạm vào để chọn mục tiêu.');
-    $('pBody').innerHTML=`<div class="tava-grid">`+opts.map(o=>`
+    const STEP_DESC={
+      cupid:`💘 Ghép đôi: chọn đúng 2 người – 1 chết thì người kia chết theo (${sel.length}/2).`,
+      balancer:`⚖️ Liên kết 2 người: chọn đúng 2 người – khi 1 chết người kia chết theo (${sel.length}/2).`,
+      detective:`🕵️ So sánh phe 2 người: chọn đúng 2 người để biết họ cùng phe hay khác phe (${sel.length}/2).`,
+      switcher:`🔄 Hoán đổi: chọn 2 người – Sói cắn A sẽ thành B chết thay (${sel.length}/2).`,
+      fox:`🦊 Chọn 3 người để biết nhóm đó có Sói không (${sel.length}/3).`,
+      hoodlum:`💀 Chọn 3 mục tiêu – bạn thắng khi cả 3 đã chết (${sel.length}/3).`,
+      fluteplayer:`🪈 Thôi miên 2 người – chọn đúng 2 người (${sel.length}/2).`,
+      gravedigger:`⚰️ Kiểm tra role của 1 người đã chết.`,
+      medium:`🕯️ Liên lạc với 1 người đã chết để biết họ có phải Sói không.`,
+      graverobber:`⛏️ Khai quật người chết hôm qua – kế thừa role của họ.`,
+      gatekeeper:`🚪 Chặn 1 người – họ không thể dùng kỹ năng đêm nay.`,
+      icewitch:`❄️ Đóng băng 1 người – họ mất kỹ năng và miễn nhiễm bị cắn đêm nay.`,
+      diplomat:`🕊️ Bảo hộ 1 người – họ không thể bị treo cổ ngày hôm sau.`,
+      tracker:`🔭 Theo dõi 1 người – biết họ có dùng kỹ năng đêm nay không.`,
+      sorcerer:`🧿 Kiểm tra 1 người – biết họ có phải Tiên Tri/Phù Thủy không.`,
+      wolfseer:`🔮 Soi role của nạn nhân vừa bị Sói cắn.`,
+      hypnowolf:`🌀 Thôi miên 1 người – ngày mai họ bỏ phiếu theo ý Sói.`,
+      cursedwolf:`🌀 Nguyền 1 người – họ sẽ trở thành Sói sáng mai (1 lần cả ván).`,
+      blackmailer:`📬 Tống tiền 1 người – ngày mai họ bỏ phiếu theo ý bạn.`,
+      nighthunter:`🌙 Bắn 1 người – trúng Sói → Sói chết, trúng Dân → bạn chết.`,
+      priest:`✝️ Ném nước thánh vào 1 người – trúng Sói → Sói chết, trúng Dân → bạn chết.`,
+      gunsmith:`🔫 Bắn 1 người – họ chết sáng mai (1 viên đạn cả ván).`,
+      magistrate:`🔨 Bảo vệ 1 người khỏi bị treo cổ ngày hôm nay (1 lần cả ván).`,
+      queencard:`👸 Vua vừa băng hà – chọn 1 người chết theo.`,
+      avenger:`⚔️ Bạn đang chết – nguyền 1 người: nếu là Sói thì Sói đó chết theo bạn.`,
+    };
+    $('pDesc').textContent = STEP_DESC[p.stepType] || (max>1 ? `Chạm chọn ${sel.length}/${max} người.` : 'Chạm vào để chọn mục tiêu. Bỏ qua = bỏ lượt.');
+    // Với vai cần chọn người đã chết: filter options theo dead
+    const displayOpts = p.deadOnly ? (p.options||[]).filter(o=>o.dead) : opts;
+    $('pBody').innerHTML=`<div class="tava-grid">`+displayOpts.map(o=>`
       <div class="tava${sel.includes(o.id)?' sel':''}" onclick="tapTarget('${o.id}')">
         <div class="tava-sel-ring"></div>
         <div class="tava-check">✓</div>
@@ -748,7 +775,23 @@ function submitAction(){ if(!curPrompt) return;
   else { if(!sel.length) return; send({t:'action',action:{targets:sel}}); }
   curPrompt=null; show('promptBox',false); show('sleepBox',true); clearInterval(promptTimerInt); }
 function submitSkip(){ send({t:'action',action:{skip:true}}); curPrompt=null; show('promptBox',false); show('sleepBox',true); clearInterval(promptTimerInt); }
-const stepVi=t=>({wolf:'Ma Sói cắn',seer:'Tiên Tri soi',witch:'Phù Thủy',bodyguard:'Bảo Vệ',doctor:'Bác Sĩ',hunter:'Thợ Săn',cupid:'Cupid',whitewolf:'Sói Trắng',serialkiller:'Sát Nhân'}[t]||t);
+const stepVi=t=>({
+  wolf:'Ma Sói cắn',seer:'Tiên Tri soi',witch:'Phù Thủy',bodyguard:'Bảo Vệ',doctor:'Bác Sĩ',
+  hunter:'Thợ Săn',cupid:'Cupid',whitewolf:'Sói Trắng',serialkiller:'Sát Nhân',
+  gatekeeper:'Kẻ Gác Cổng chặn',icewitch:'Nữ Phù Thủy Băng Giá',switcher:'Kẻ Đánh Tráo',
+  diplomat:'Nhà Ngoại Giao bảo hộ',fox:'Cáo soi nhóm',detective:'Thám Tử so sánh',
+  gravedigger:'Người Gác Mộ kiểm tra',medium:'Nhà Linh Hồn liên lạc',tracker:'Kẻ Theo Dõi',
+  sorcerer:'Sói Ma Thuật kiểm tra',wolfseer:'Sói Tiên Tri soi',hypnowolf:'Sói Thao Túng',
+  bigbadwolf:'Sói Khổng Lồ cắn thêm',poisonwolf:'Sói Độc phun',hellhound:'Sói Lửa đốt',
+  cursedwolf:'Sói Nguyền biến',direwolf:'Sói Cuồng Nộ chọn tri kỷ',
+  copycat:'Người Sao Chép',wildchild:'Dã Nhân chọn thần tượng',doppelganger:'Người Nhân Bản nhắm',
+  hoodlum:'Kẻ Thu Thập Linh Hồn chọn 3 mục tiêu',challenger:'Kẻ Thách Thức chọn kẻ thù',
+  balancer:'Kẻ Cân Bằng liên kết 2 người',assassin:'Kẻ Ám Sát',blackmailer:'Kẻ Tống Tiền',
+  fluteplayer:'Chàng Thổi Sáo thôi miên',nighthunter:'Kẻ Săn Đêm bắn',
+  graverobber:'Kẻ Trộm Mộ khai quật',queencard:'Hoàng Hậu chọn chết theo',
+  priest:'Linh Mục ném nước thánh',gunsmith:'Xạ Thủ bắn',magistrate:'Quan Tòa phủ quyết',
+  avenger:'Kẻ Báo Thù nguyền',survivor:'Kẻ Sống Sót (thụ động)',minion:'Sói Phản Bội',deserter:'Kẻ Đào Ngũ',
+}[t]||t);
 
 function renderVote(m){
   show('voteBox',true); voteOptions=m.options||[]; myVote=null; drawVote(); $('voteStatus').textContent='Chưa vote – bấm để chọn.';
@@ -855,7 +898,7 @@ function insEmo(e){ const i=$('chatIn'); if(i.disabled) return; i.value=(i.value
 /* ── Lobby helpers ── */
 function renderRoleConfig(){
   const el=$('roleGrid'); if(!el||!roleCatalog.length) return;
-  const groups=[['village','🏡 Phe Dân'],['wolf','🐺 Phe Sói'],['third','🎭 Phe Thứ Ba']];
+  const groups=[['village','🏡 Phe Dân'],['wolf','🐺 Phe Sói'],['third','🎭 Phe Thứ Ba'],['neutral','⚖️ Trung Lập']];
   let html='';
   for(const [team,label] of groups){
     const roles=roleCatalog.filter(r=>r.team===team && r.id!=='villager' && r.id!=='littlegirl');

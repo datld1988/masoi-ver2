@@ -64,7 +64,7 @@ setInterval(() => {
   for (const [ip, e] of ipCount) if (now > e.resetAt) ipCount.delete(ip);
 }, 10 * 60_000).unref();
 
-const ROLE_CATALOG = E.ROLES.map(r => ({ id: r.id, name: r.name, icon: r.icon, team: r.team }));
+const ROLE_CATALOG = E.ROLES.map(r => ({ id: r.id, name: r.name, icon: r.icon, team: r.team, desc: r.desc || '' }));
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 8080;
