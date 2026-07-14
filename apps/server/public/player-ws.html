@@ -41,14 +41,52 @@ input:-webkit-autofill,input:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 100
 .role-plate .nm{font-family:Georgia,serif;font-weight:700;font-size:1.15rem;color:#c9a55c;} .role-plate .team{font-size:.72rem;color:#8f86c9;}
 .role-shine{position:absolute;inset:0;border-radius:14px;pointer-events:none;opacity:0;transition:opacity .2s;background:radial-gradient(circle at var(--gx,50%) var(--gy,40%),rgba(255,255,255,.22),transparent 44%);mix-blend-mode:screen;z-index:5;}
 .role-card.tilting .role-shine{opacity:1;}
-/* Roster */
-.roster{display:grid;grid-template-columns:repeat(auto-fill,minmax(74px,1fr));gap:8px;}
-.ptile{background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:8px 4px;text-align:center;}
-.ptile.me{border-color:var(--accent);box-shadow:0 0 0 2px rgba(168,85,247,.3);} .ptile.dead{opacity:.55;}
-.ptile .ava{width:40px;height:40px;border-radius:50%;margin:2px auto 5px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.95rem;color:#fff;position:relative;}
-.ptile.dead .ava{filter:grayscale(1);}
-.ptile .pdot{position:absolute;bottom:0;right:0;width:13px;height:13px;border-radius:50%;border:2px solid var(--surface2);display:flex;align-items:center;justify-content:center;font-size:8px;line-height:1;}
-.ptile .pname{font-size:.75rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;} .ptile.dead .pname{text-decoration:line-through;} .ptile .psub{font-size:.62rem;color:var(--muted);}
+/* ── Roster — tile grid kiểu Wolvesville ── */
+.roster{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:6px;}
+/* Tile hình chữ nhật dọc (3:4), nền trời → rừng */
+.ptile{position:relative;border-radius:14px;overflow:hidden;aspect-ratio:3/4;
+  background:linear-gradient(180deg,#5b9ec9 0%,#2f6b9a 38%,#1a3d5c 68%,#0c1e2e 100%);
+  border:2px solid #2a4a6a;cursor:default;user-select:none;transition:border-color .15s;}
+.ptile.me{border-color:var(--accent);box-shadow:0 0 0 3px rgba(168,85,247,.35);}
+.ptile.dead{filter:saturate(.2) brightness(.65);}
+/* Silhouette cây / núi ở đáy */
+.ptile-forest{position:absolute;bottom:0;left:0;right:0;height:38%;z-index:1;pointer-events:none;
+  background:#091520;
+  clip-path:polygon(0% 100%,0% 70%,3% 58%,6% 70%,9% 46%,12% 63%,16% 36%,19% 58%,22% 48%,26% 66%,29% 28%,32% 52%,36% 40%,40% 60%,43% 33%,47% 56%,51% 42%,54% 63%,57% 36%,61% 58%,64% 46%,68% 63%,71% 30%,75% 53%,79% 40%,83% 60%,86% 46%,90% 63%,93% 50%,97% 66%,100% 54%,100% 100%);}
+/* Header: số ghế + tên (gradient mờ từ trên xuống) */
+.ptile-header{position:absolute;top:0;left:0;right:0;z-index:3;padding:5px 5px 10px;
+  display:flex;align-items:center;gap:3px;
+  background:linear-gradient(180deg,rgba(0,0,0,.6) 0%,transparent 100%);}
+.ptile-seat{font-size:.65rem;font-weight:800;color:rgba(255,255,255,.75);flex-shrink:0;
+  background:rgba(0,0,0,.35);border-radius:4px;padding:1px 4px;line-height:1.45;}
+.ptile-name{font-size:.7rem;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  text-shadow:0 1px 4px rgba(0,0,0,.9);}
+.ptile.dead .ptile-name{text-decoration:line-through;opacity:.7;}
+/* Avatar lớn căn giữa, không đè vào forest */
+.ptile-body{position:absolute;inset:0;z-index:2;display:flex;align-items:center;justify-content:center;padding-top:22%;padding-bottom:32%;}
+.ptile-ava{width:62%;aspect-ratio:1;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-weight:800;font-size:1.3rem;color:#fff;
+  border:3px solid rgba(255,255,255,.28);box-shadow:0 4px 18px rgba(0,0,0,.45),inset 0 0 0 1px rgba(255,255,255,.1);}
+/* Footer: chấm online + sub-text */
+.ptile-footer{position:absolute;bottom:0;left:0;right:0;z-index:3;padding:4px 5px 5px;
+  display:flex;align-items:center;gap:4px;
+  background:linear-gradient(0deg,rgba(0,0,0,.65) 0%,transparent 100%);}
+.ptile-online{width:7px;height:7px;border-radius:50%;flex-shrink:0;border:1.5px solid rgba(0,0,0,.4);}
+.ptile-sub{font-size:.58rem;color:rgba(255,255,255,.6);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+/* Dead overlay */
+.ptile-dead-ov{position:absolute;inset:0;z-index:4;display:flex;align-items:center;justify-content:center;
+  font-size:1.8rem;background:rgba(0,0,0,.25);pointer-events:none;}
+/* Badge sẵn sàng / chưa sẵn sàng */
+.ptile-badge{position:absolute;bottom:20px;left:50%;transform:translateX(-50%);z-index:4;
+  font-size:.58rem;font-weight:700;border-radius:6px;padding:2px 6px;white-space:nowrap;
+  border:1px solid;pointer-events:none;}
+.ptile-badge.ready{background:rgba(74,222,128,.15);border-color:var(--green);color:var(--green);}
+.ptile-badge.waiting{background:rgba(0,0,0,.25);border-color:#6b7280;color:#9ca3af;}
+/* Report button */
+.ptile-report{position:absolute;top:3px;right:3px;z-index:5;background:rgba(0,0,0,.3);border:none;
+  border-radius:4px;color:rgba(255,255,255,.4);font-size:.6rem;cursor:pointer;padding:2px 4px;line-height:1;
+  transition:color .15s,background .15s;}
+.ptile-report:hover{color:var(--red);background:rgba(0,0,0,.55);}
 /* Prompt + vòng đếm ngược */
 .ringWrap{position:relative;width:84px;height:84px;margin:2px auto 12px;}
 .ring{width:84px;height:84px;transform:rotate(-90deg);display:block;} .ring circle{fill:none;stroke-width:6;stroke-linecap:round;}
@@ -77,6 +115,19 @@ input:-webkit-autofill,input:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 100
 /* Toast thông báo */
 #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1e1040;border:1px solid var(--accent);color:var(--text);padding:10px 20px;border-radius:12px;font-size:.9rem;z-index:200;opacity:0;transition:opacity .3s;pointer-events:none;}
 #toast.show{opacity:1;}
+/* Modal xác nhận */
+#confirmModal{position:fixed;inset:0;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;z-index:300;opacity:0;pointer-events:none;transition:opacity .2s;}
+#confirmModal.show{opacity:1;pointer-events:auto;}
+#confirmBox{background:#1a103a;border:1px solid var(--accent);border-radius:16px;padding:28px 32px;max-width:340px;width:90%;text-align:center;box-shadow:0 8px 40px #0008;transform:scale(.93);transition:transform .2s;}
+#confirmModal.show #confirmBox{transform:scale(1);}
+#confirmBox .cm-icon{font-size:2.4rem;margin-bottom:8px;}
+#confirmBox .cm-title{font-size:1.1rem;font-weight:700;margin-bottom:6px;color:var(--text);}
+#confirmBox .cm-msg{font-size:.9rem;color:#a89ec4;margin-bottom:20px;line-height:1.5;}
+#confirmBox .cm-btns{display:flex;gap:10px;justify-content:center;}
+#confirmBox .cm-btns button{flex:1;padding:10px;border-radius:10px;border:none;cursor:pointer;font-size:.95rem;font-weight:600;transition:filter .15s;}
+#confirmBox .cm-btns button:hover{filter:brightness(1.15);}
+#cm-cancel{background:#2e2060;color:var(--text);}
+#cm-ok{background:#c0392b;color:#fff;}
 /* Overlay chuyển cảnh */
 #sceneOv{position:fixed;inset:0;background:#0d0920;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;z-index:99;opacity:0;pointer-events:none;transition:opacity .7s;}
 #sceneOv.rise #ovIcon{animation:riseUp 1.5s cubic-bezier(.2,.7,.2,1);} @keyframes riseUp{0%{transform:translateY(70px) scale(.55);opacity:0}45%{opacity:1}100%{transform:translateY(0) scale(1);opacity:1}}
@@ -97,6 +148,17 @@ input:-webkit-autofill,input:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 100
 </header>
 <div id="sceneOv"><div id="ovIcon"></div><div id="ovTxt"></div></div>
 <div id="toast"></div>
+<div id="confirmModal">
+  <div id="confirmBox">
+    <div class="cm-icon" id="cm-icon">🚪</div>
+    <div class="cm-title" id="cm-title">Thoát phòng?</div>
+    <div class="cm-msg" id="cm-msg">Bạn sẽ rời khỏi ván hiện tại.</div>
+    <div class="cm-btns">
+      <button id="cm-cancel" onclick="closeConfirm(false)">Ở lại</button>
+      <button id="cm-ok" onclick="closeConfirm(true)">Thoát</button>
+    </div>
+  </div>
+</div>
 <main>
 
   <!-- Màn hình đăng nhập (hiện trước join) -->
@@ -249,7 +311,7 @@ input:-webkit-autofill,input:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 100
       <div class="big" id="endIcon">🏆</div><div class="title" id="endTitle"></div>
       <div id="endReveal" style="text-align:left;margin-top:10px;line-height:1.7"></div>
       <button class="btn btn-primary" onclick="sendNewMatch()" style="margin-top:10px">🔄 Ván mới cùng nhóm</button>
-      <button class="btn btn-ghost" onclick="leaveRoom(true)" style="margin-top:6px">🚪 Rời phòng</button>
+      <button class="btn btn-ghost" onclick="leaveRoom()" style="margin-top:6px">🚪 Rời phòng</button>
     </section>
   </div>
 </main>
@@ -398,8 +460,24 @@ function renderRooms(list){ const el=$('roomList'); if(!el) return;
   if(!list||!list.length){ el.innerHTML='<span class="muted">Chưa có phòng nào đang mở. Bấm “Tạo phòng” để mở phòng mới.</span>'; return; }
   el.innerHTML=list.map(r=>`<button class="btn btn-ghost" style="width:100%;margin:4px 0;padding:9px" onclick="joinRoomCode('${esc(r.code)}')">${r.locked?'🔒 ':'🚪 '}Phòng ${esc(r.code)} — ${r.count} người</button>`).join(''); }
 function joinRoomCode(code){ $('inRoom').value=code; if($('inPass')) $('inPass').focus(); }
-function leaveRoom(force){
-  if(!force && !confirm('Thoát phòng? Bạn sẽ rời khỏi ván hiện tại.')) return;
+/* ── Modal xác nhận ── */
+let _confirmResolve=null;
+function showConfirm({icon='🚪',title='Xác nhận',msg='',okText='Đồng ý',okClass=''}={}){
+  $('cm-icon').textContent=icon; $('cm-title').textContent=title; $('cm-msg').textContent=msg;
+  $('cm-ok').textContent=okText;
+  if(okClass){ $('cm-ok').className=okClass; } else { $('cm-ok').style.cssText=''; }
+  $('confirmModal').classList.add('show');
+  return new Promise(res=>{ _confirmResolve=res; });
+}
+function closeConfirm(ok){ $('confirmModal').classList.remove('show'); if(_confirmResolve){ _confirmResolve(ok); _confirmResolve=null; } }
+// đóng khi click nền
+$('confirmModal').addEventListener('click',e=>{ if(e.target===$('confirmModal')) closeConfirm(false); });
+
+async function leaveRoom(force){
+  if(!force){
+    const ok=await showConfirm({icon:'🚪',title:'Thoát phòng?',msg:'Bạn sẽ rời khỏi ván hiện tại.',okText:'Thoát'});
+    if(!ok) return;
+  }
   try{ send({t:'leave'}); }catch(e){}
   localStorage.removeItem('masoi_ws_token'); localStorage.removeItem('masoi_ws_room');
   setTimeout(()=>{ try{ ws && ws.close(); }catch(e){} location.reload(); }, 150);
@@ -516,11 +594,32 @@ function renderRoster(elId){
   const seats=[...players].sort((a,b)=>(a.seat||0)-(b.seat||0));
   el.innerHTML=seats.map(p=>{
     const me=p.id===myId, alive=p.alive!==false, online=p.connected!==false;
-    const col=alive?avaColor(p.name):'#4b5563';
-    const dot=alive?`<span class="pdot" style="background:${online?'var(--green)':'#6b7280'}"></span>`:`<span class="pdot" style="background:#450a0a">💀</span>`;
-    const reportBtn=inGame&&!me?`<button onclick="reportPlayer('${p.id}','${esc(p.name).replace(/'/g,"\\'")}',event)" style="position:absolute;top:3px;right:3px;background:none;border:none;font-size:.6rem;color:var(--muted);cursor:pointer;padding:2px 4px;opacity:.55" title="Báo cáo">⚑</button>`:'';
-    return `<div class="ptile${alive?'':' dead'}${me?' me':''}" style="position:relative">${reportBtn}<div class="ava" style="background:${col}">${esc(avaInit(p.name))}${dot}</div>
-      <div class="pname">${me?'⭐ ':''}${esc(p.name)}${p.ready===true?' ✅':''}</div><div class="psub">${p.ready===false?'⏳ chưa sẵn sàng':(alive?('Ghế '+((p.seat||0)+1)):'Đã chết')}</div></div>`;
+    const seatNum=(p.seat||0)+1;
+    const col=alive?avaColor(p.name):'#3a4555';
+    const onlineCol=alive?(online?'var(--green)':'#6b7280'):'#dc2626';
+    const subTxt=!alive?'Đã chết':(!online?'offline':'');
+    const reportBtn=inGame&&!me
+      ?`<button class="ptile-report" onclick="reportPlayer('${p.id}','${esc(p.name).replace(/'/g,"\\'")}',event)" title="Báo cáo">⚑</button>`:'';
+    const deadOv=!alive?`<div class="ptile-dead-ov">💀</div>`:'';
+    let badge='';
+    if(!inGame){
+      if(p.ready===true) badge=`<div class="ptile-badge ready">✓ Sẵn sàng</div>`;
+      else if(p.ready===false&&!me) badge=`<div class="ptile-badge waiting">⏳ chờ</div>`;
+    }
+    return `<div class="ptile${alive?'':' dead'}${me?' me':''}">
+      <div class="ptile-forest"></div>
+      <div class="ptile-header">
+        <span class="ptile-seat">${seatNum}</span>
+        <span class="ptile-name">${me?'⭐ ':''}${esc(p.name)}</span>
+      </div>
+      ${reportBtn}
+      <div class="ptile-body"><div class="ptile-ava" style="background:${col}">${esc(avaInit(p.name))}</div></div>
+      ${badge}${deadOv}
+      <div class="ptile-footer">
+        <span class="ptile-online" style="background:${onlineCol}"></span>
+        ${subTxt?`<span class="ptile-sub">${subTxt}</span>`:''}
+      </div>
+    </div>`;
   }).join('');
 }
 function renderRole(m){
