@@ -65,8 +65,10 @@ input:-webkit-autofill,input:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 100
 /* Avatar lớn căn giữa, không đè vào forest */
 .ptile-body{position:absolute;inset:0;z-index:2;display:flex;align-items:center;justify-content:center;padding-top:22%;padding-bottom:32%;}
 .ptile-ava{width:62%;aspect-ratio:1;border-radius:50%;display:flex;align-items:center;justify-content:center;
-  font-weight:800;font-size:1.3rem;color:#fff;
+  font-weight:800;font-size:1.3rem;color:#fff;position:relative;overflow:hidden;
   border:3px solid rgba(255,255,255,.28);box-shadow:0 4px 18px rgba(0,0,0,.45),inset 0 0 0 1px rgba(255,255,255,.1);}
+.ptile-ava .ptile-ava-init{position:relative;z-index:0;pointer-events:none;}
+.ptile-ava img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;border-radius:50%;z-index:1;}
 /* Footer: chấm online + sub-text */
 .ptile-footer{position:absolute;bottom:0;left:0;right:0;z-index:3;padding:4px 5px 5px;
   display:flex;align-items:center;gap:4px;
@@ -588,6 +590,9 @@ function renderStatusBar(){
   if(phase==='night') ph=`🌙 Đêm ${meta.nightNo||''}`; else if(phase==='day') ph=`☀️ Ngày ${meta.dayNo||''}`; else if(phase==='ended') ph='🏁 Kết thúc';
   $('statusBar').innerHTML=`<span class="sb-phase">${ph}</span><span class="sb-alive">👥 ${alive}/${total} sống</span>`+(!myAlive?'<span class="sb-dead">👻 Bạn đã chết</span>':'');
 }
+function dicebearUrl(name){
+  return 'https://api.dicebear.com/9.x/personas/svg?seed='+encodeURIComponent(name)+'&backgroundColor=transparent';
+}
 function renderRoster(elId){
   const el=$(elId); if(!el) return; el.className='roster';
   const inGame=(elId==='playerList');
@@ -613,7 +618,12 @@ function renderRoster(elId){
         <span class="ptile-name">${me?'⭐ ':''}${esc(p.name)}</span>
       </div>
       ${reportBtn}
-      <div class="ptile-body"><div class="ptile-ava" style="background:${col}">${esc(avaInit(p.name))}</div></div>
+      <div class="ptile-body">
+        <div class="ptile-ava" style="background:${col}">
+          <span class="ptile-ava-init">${esc(avaInit(p.name))}</span>
+          <img src="${dicebearUrl(p.name)}" alt="" loading="lazy" onerror="this.style.display='none'">
+        </div>
+      </div>
       ${badge}${deadOv}
       <div class="ptile-footer">
         <span class="ptile-online" style="background:${onlineCol}"></span>
