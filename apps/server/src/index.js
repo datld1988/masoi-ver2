@@ -263,12 +263,13 @@ const httpServer = createServer(async (req, res) => {
 const wss = new WebSocketServer({ server: httpServer });
 
 wss.on('connection', (ws, req) => {
-  const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket?.remoteAddress || 'unknown';
+  const rawIp = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket?.remoteAddress || 'unknown';
+  const ip = rawIp.replace(/^::ffff:/i, '');   // normalize IPv4-mapped IPv6
   if (!checkRate(ip)) { ws.close(1008, 'Rate limit exceeded'); return; }
   ws.send(JSON.stringify({ t: 'roles', roles: ROLE_CATALOG }));   // danh mục 22 vai cho lobby
   ws.on('message', async (data) => {
     let m;
-    try { m = JSON.parse(data.toString()); } catch { return; }
+    try { m = JSON.parse(data.toString()); } catch { console.warn('[WS] JSON không hợp lệ từ', ip); return; }
 
     const sendErr = (msg) => ws.send(JSON.stringify({ t: 'error', message: msg }));
 
@@ -300,7 +301,7 @@ wss.on('connection', (ws, req) => {
       if (!identity) return;
       const { pid, name } = identity;
       const room = getRoom(code);
-      room.password = (m.password || '');
+      room.password = (m.password || '').slice(0, 30);
       ws._room = room; ws._pid = pid; sockets.set(pid, ws);
       ws.send(JSON.stringify({ t: 'welcome', id: pid, token: pid, room: code }));
       room.join(pid, name);           // người tạo = chủ phòng

@@ -26,6 +26,8 @@ export class Room {
     this.nd = null;
     this.cur = null;                  // trạng thái đợt đêm hiện tại
     this.timer = null;
+    this._promptDeadline = null;   // deadline đợt đêm hiện tại (dùng khi resume)
+    this._voteDeadline = null;     // deadline vote hiện tại
     this.votes = {};
     this.voteOpen = false;
     this.chatLog = { main: [], wolf: [], dead: [] };
@@ -70,7 +72,10 @@ export class Room {
     // Chủ phòng rớt mạng → chuyển quyền cho người đang online (khỏi kẹt phòng)
     if (!val && id === this.ownerId) {
       const next = this.players.find(p => p.connected && p.id !== id);
-      if (next) this.ownerId = next.id;
+      if (next) {
+        this.ownerId = next.id;
+        this.broadcast({ t: 'toast', message: `👑 ${next.name} trở thành chủ phòng mới.` });
+      }
     }
     this.broadcastState();
     if (this.phase === 'lobby') this.broadcastLobby();
@@ -88,7 +93,13 @@ export class Room {
     }
     // Đang chơi
     this.players[i].connected = false;
-    if (this.ownerId === id) this.ownerId = (this.players.find(p => p.id !== id && p.connected) || this.players.find(p => p.id !== id) || {}).id || null;
+    if (this.ownerId === id) {
+      this.ownerId = (this.players.find(p => p.id !== id && p.connected) || this.players.find(p => p.id !== id) || {}).id || null;
+      if (this.ownerId) {
+        const newOwner = this.players.find(p => p.id === this.ownerId);
+        if (newOwner) this.broadcast({ t: 'toast', message: `👑 ${newOwner.name} trở thành chủ phòng mới.` });
+      }
+    }
     const gp = this.state && this.state.players[i];
     if (gp && gp.alive) { gp.alive = false; this.broadcast({ t: 'day', lines: [`🚪 ${name} đã rời phòng (xem như đã chết).`] }); }
     if (this.cur && this.cur.pending) {                 // gỡ khỏi lượt đêm đang chờ, kẻo kẹt
@@ -169,6 +180,7 @@ export class Room {
     if (cur.pending.size === 0) return this.morning();
     const options = this.promptOptions();
     const deadline = now() + this.settings.actionSec * 1000;
+    this._promptDeadline = deadline;
     for (const p of this.players) {
       const i = this.idx(p.id);
       if (this.state.players[i].alive && cur.pending.has(i)) this.send(p.id, this.promptForActor(cur.stepByActor[i], options, deadline));
@@ -241,6 +253,7 @@ export class Room {
     return ev;
   }
   morning() {
+    if (this.phase !== 'night') return;
     this.clearTimer();
     this.cur = null;
     const actions = this.nightEvents();              // dựng trước khi phân giải (vai ở thời điểm hành động)
@@ -271,7 +284,8 @@ export class Room {
     this.broadcast({ t: 'scene', phase: 'day', dayNo: this.state.day, deadline: now() + this.settings.discussionSec * 1000 });
     this.timer = this.sched.set(this.settings.discussionSec * 1000, () => {
       this.voteOpen = true;
-      this.broadcast({ t: 'voteOpen', deadline: now() + this.settings.voteSec * 1000, options: this.promptOptions() });
+      this._voteDeadline = now() + this.settings.voteSec * 1000;
+      this.broadcast({ t: 'voteOpen', deadline: this._voteDeadline, options: this.promptOptions() });
       this.timer = this.sched.set(this.settings.voteSec * 1000, () => this.closeVote());
     });
   }
@@ -281,10 +295,16 @@ export class Room {
     const vi = this.idx(pid), ti = this.idx(targetPid);
     if (vi < 0 || ti < 0 || !this.state.players[vi].alive) return;
     this.votes[vi] = ti;
-    const c = {}; Object.values(this.votes).forEach(t => { c[t] = (c[t] || 0) + 1; });
+    const c = {};
+    Object.entries(this.votes).forEach(([v, t]) => {
+      const p = this.state.players[+v];
+      if (!p || !p.alive || p.idiotRevealed) return;
+      c[t] = (c[t] || 0) + 1;
+    });
     this.broadcast({ t: 'voteTally', tally: c });
   }
   closeVote() {
+    if (this.phase !== 'day') return;
     this.clearTimer();
     this.voteOpen = false;
     const { top } = this.E.tallyVotes(this.state, this.votes);
@@ -362,10 +382,13 @@ export class Room {
     const deal = this.E.dealInfo(this.state);
     this.send(id, { t: 'yourRole', role: deal[i].role, mates: (deal[i].mates || []).map(m => ({ name: m.name })) });
     if (this.phase === 'night' && this.cur && this.cur.pending) {
-      if (this.cur.pending.has(i)) this.send(id, this.promptForActor(this.cur.stepByActor[i], this.promptOptions(), now() + this.settings.actionSec * 1000));
-      else this.send(id, { t: 'sleep' });
+      if (this.cur.pending.has(i)) {
+        const dl = this._promptDeadline ? Math.max(now() + 5000, this._promptDeadline) : now() + this.settings.actionSec * 1000;
+        this.send(id, this.promptForActor(this.cur.stepByActor[i], this.promptOptions(), dl));
+      } else this.send(id, { t: 'sleep' });
     } else if (this.phase === 'day' && this.voteOpen && this.state.players[i].alive) {
-      this.send(id, { t: 'voteOpen', deadline: now() + this.settings.voteSec * 1000, options: this.promptOptions() });
+      const dl = this._voteDeadline ? Math.max(now() + 5000, this._voteDeadline) : now() + this.settings.voteSec * 1000;
+      this.send(id, { t: 'voteOpen', deadline: dl, options: this.promptOptions() });
     }
     for (const ch of CHATS)
       if (this.chatRecipients(ch).includes(id))
@@ -387,6 +410,7 @@ export class Room {
     if (this.phase !== 'ended') return;
     this.clearTimer();
     this.state = null; this.nd = null; this.cur = null;
+    this._promptDeadline = null; this._voteDeadline = null;
     this.votes = {}; this.voteOpen = false;
     this.chatLog = { main: [], wolf: [], dead: [] };
     this.history = [];

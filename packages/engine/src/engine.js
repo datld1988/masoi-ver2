@@ -145,7 +145,7 @@ function applyNightAction(state, nd, stepType, payload) {
 
   switch (stepType) {
     case 'cupid': {
-      if (!t || t.length !== 2 || !t.every(checkAlive)) return bad('Cupid phải chọn đúng 2 người còn sống');
+      if (!t || t.length !== 2 || t[0] === t[1] || !t.every(checkAlive)) return bad('Cupid phải chọn đúng 2 người khác nhau còn sống');
       s.cupidPair = [...t];
       nd.stepLog.push(`💘 Cupid ghép đôi: ${t.map(i => s.players[i].name).join(' & ')}`);
       return { ok: true };
