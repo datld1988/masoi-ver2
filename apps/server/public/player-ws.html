@@ -127,14 +127,58 @@ input:-webkit-autofill,input:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 100
 .cmsg{display:flex;gap:6px;margin:5px 0;align-items:flex-end;} .cmsg.mine{flex-direction:row-reverse;}
 .cava{width:26px;height:26px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:.66rem;font-weight:700;color:#fff;}
 .cbub{display:inline-block;max-width:76%;text-align:left;border:1px solid var(--border);border-radius:12px;padding:5px 10px;}
-/* Cấu hình vai (giống bản offline) */
-#roleGrid .rgroup{font-weight:700;color:var(--accent);margin:12px 0 5px;font-size:.85rem;}
-#roleGrid .rgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(185px,1fr));gap:6px;}
-.rrow{display:flex;align-items:center;gap:7px;background:var(--surface2);border:1px solid var(--border);border-radius:9px;padding:7px 9px;font-size:.86rem;}
-.rrow .ri{flex-shrink:0;font-size:1.05rem;}
-.rrow .rn{flex:1;line-height:1.15;}
-.rrow .rc{min-width:18px;text-align:center;font-weight:700;}
-.rstep{width:27px;height:27px;flex-shrink:0;border-radius:7px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-weight:700;cursor:pointer;}
+/* Cấu hình phòng — hero card design */
+.rc-hero{background:linear-gradient(155deg,#1e1240,#2a1a5c);border:1px solid rgba(168,85,247,.35);border-radius:16px;padding:16px 14px 14px;margin:12px 0 10px;box-shadow:0 4px 24px rgba(168,85,247,.12);}
+.rc-hero-head{display:flex;align-items:center;gap:8px;margin-bottom:12px;}
+.rc-hero-title{font-weight:800;font-size:.98rem;letter-spacing:.3px;}
+.rc-hero-suggest{margin-left:auto;padding:6px 12px;background:rgba(0,0,0,.25);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:.8rem;font-weight:700;cursor:pointer;white-space:nowrap;transition:filter .12s;}
+.rc-hero-suggest:hover{filter:brightness(1.25);}
+.rc-hero-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;}
+.rc-hero-stat{text-align:center;padding:9px 4px;background:rgba(0,0,0,.28);border-radius:10px;border:1px solid rgba(255,255,255,.05);}
+.rc-hero-stat-num{font-size:1.5rem;font-weight:800;line-height:1;font-variant-numeric:tabular-nums;}
+.rc-hero-stat-lbl{font-size:.72rem;color:var(--muted);margin-top:4px;font-weight:600;}
+.rc-hero-stat.wolf .rc-hero-stat-num{color:#f87171;}
+.rc-hero-stat.village .rc-hero-stat-num{color:#60a5fa;}
+.rc-hero-status{font-size:.82rem;color:#fbbf24;text-align:center;padding:7px 12px;background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.3);border-radius:10px;margin-bottom:10px;font-weight:600;}
+.rc-hero-btn{display:block;width:100%;padding:13px;background:linear-gradient(135deg,#dc2626,#a855f7);color:#fff;border:none;border-radius:12px;font-size:1rem;font-weight:800;cursor:pointer;letter-spacing:.4px;box-shadow:0 4px 20px rgba(220,38,38,.28);transition:transform .1s,filter .12s;}
+.rc-hero-btn:hover:not(:disabled){filter:brightness(1.15);transform:translateY(-1px);}
+.rc-hero-btn:active:not(:disabled){transform:scale(.98);}
+.rc-hero-btn:disabled{opacity:.4;cursor:not-allowed;background:linear-gradient(135deg,#4b5563,#374151);box-shadow:none;}
+/* Timer bar riêng, gọn dưới hero */
+.rc-timers-bar{background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:9px 12px;margin-bottom:10px;}
+.rc-timers-title{font-size:.7rem;color:var(--muted);margin-bottom:6px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;}
+.rc-timers-row{display:flex;gap:6px;}
+.rc-timer{display:flex;align-items:center;justify-content:center;gap:4px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:5px 8px;font-size:.78rem;color:var(--muted);flex:1;min-width:0;}
+.rc-timer .lbl{font-weight:600;white-space:nowrap;}
+.rc-timer input{width:32px;padding:0;background:transparent;border:none;color:var(--text);font-size:.88rem;font-weight:700;text-align:center;outline:none;min-width:0;flex:none;}
+#t_action,#t_disc,#t_vote{width:32px!important;min-width:0!important;padding:0!important;}
+/* Cấu hình vai — card layout */
+.rc-statsbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;}
+.rc-stat{display:flex;align-items:center;gap:6px;background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:5px 13px;font-size:.85rem;font-weight:600;}
+.rc-stat.warn{border-color:#dc2626;color:#f87171;}
+.rc-search-wrap{position:relative;margin-bottom:10px;}
+.rc-search-wrap::before{content:'🔍';position:absolute;left:12px;top:50%;transform:translateY(-50%);pointer-events:none;font-size:.9rem;}
+#rcSearch{width:100%;box-sizing:border-box;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:9px 40px 9px 36px;color:var(--text);font-size:.9rem;outline:none;}
+#rcSearch:focus{border-color:var(--accent);}
+#rcSearchClear{position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--muted);cursor:pointer;font-size:1rem;padding:4px;}
+#roleGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;}
+#roleGrid .rgroup{grid-column:1/-1;font-weight:700;font-size:.82rem;margin:10px 0 2px;padding:6px 10px;background:rgba(255,255,255,.03);border-left:3px solid var(--accent);border-radius:6px;color:var(--text);}
+.rcCard{position:relative;background:var(--surface2);border:1.5px solid var(--border);border-radius:12px;padding:9px 4px 6px;display:flex;flex-direction:column;align-items:center;gap:5px;text-align:center;transition:border-color .12s,background .12s,transform .1s;min-width:0;overflow:hidden;overflow-wrap:break-word;word-break:break-word;cursor:default;}
+.rcCard:hover{border-color:var(--accent);transform:translateY(-1px);}
+.rcCard.a-wolf{background:linear-gradient(160deg,#1c0505,#2d0a0a);border-color:#dc2626;box-shadow:inset 0 0 0 1px rgba(220,38,38,.25),0 3px 10px rgba(220,38,38,.15);}
+.rcCard.a-village{background:linear-gradient(160deg,#050e1c,#0a1a30);border-color:#3b82f6;box-shadow:inset 0 0 0 1px rgba(59,130,246,.25),0 3px 10px rgba(59,130,246,.15);}
+.rcCard.a-third{background:linear-gradient(160deg,#1a1000,#2d1900);border-color:#f59e0b;box-shadow:inset 0 0 0 1px rgba(245,158,11,.25),0 3px 10px rgba(245,158,11,.15);}
+.rcCard.a-neutral{background:linear-gradient(160deg,#00121a,#001c26);border-color:#0891b2;box-shadow:inset 0 0 0 1px rgba(8,145,178,.25),0 3px 10px rgba(8,145,178,.15);}
+.rcCard-ico{width:38px;height:38px;border-radius:50%;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex-shrink:0;}
+.rcCard-name{font-weight:700;font-size:.78rem;line-height:1.15;padding:0 2px;}
+.rcCard-desc{font-size:.68rem;color:var(--muted);line-height:1.35;padding:2px 4px;flex:1;display:-webkit-box;-webkit-line-clamp:3;line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;}
+.rcCard.expanded .rcCard-desc{-webkit-line-clamp:unset;line-clamp:unset;}
+.rcCard-footer{display:flex;align-items:center;justify-content:space-between;gap:4px;margin-top:auto;width:100%;padding:0 2px;}
+.rcStep{width:24px;height:24px;border-radius:7px;border:1px solid var(--border);background:rgba(0,0,0,.3);color:var(--text);font-size:.9rem;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;transition:filter .1s,background .1s;}
+.rcStep:hover{background:var(--accent);border-color:var(--accent);filter:brightness(1.1);}
+.rcStep:disabled{opacity:.3;cursor:not-allowed;}
+.rcNum{font-weight:800;font-size:1rem;font-variant-numeric:tabular-nums;flex:1;text-align:center;}
+.rcCard-badge-cnt{position:absolute;top:5px;right:5px;background:var(--accent);color:#fff;font-size:.7rem;font-weight:800;min-width:18px;height:18px;border-radius:9px;display:flex;align-items:center;justify-content:center;padding:0 5px;box-shadow:0 2px 5px rgba(0,0,0,.4);}
 /* Toast thông báo */
 #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1e1040;border:1px solid var(--accent);color:var(--text);padding:10px 20px;border-radius:12px;font-size:.9rem;z-index:200;opacity:0;transition:opacity .3s;pointer-events:none;}
 #toast.show{opacity:1;}
@@ -239,26 +283,42 @@ input:-webkit-autofill,input:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 100
     <div class="muted" id="lobbyStatus" style="margin-top:8px"></div>
 
     <div id="ownerSetup">
-      <div class="row" style="margin-top:10px">
-        <span class="muted" style="flex:1">Cấu hình vai (tổng = số người). 🧑 Dân tự tính: <b id="villagerCount">–</b></span>
-        <button class="btn btn-ghost" onclick="suggestRoles()" style="width:auto;margin:0;padding:7px 11px;font-size:.85rem">✨ Gợi ý</button>
+      <!-- Hero card: tiêu đề + số liệu + trạng thái + nút Bắt đầu -->
+      <div class="rc-hero">
+        <div class="rc-hero-head">
+          <span class="rc-hero-title">🎴 Cấu hình phòng</span>
+          <button class="rc-hero-suggest" onclick="suggestRoles()">✨ Gợi ý bộ vai</button>
+        </div>
+        <div class="rc-hero-stats">
+          <div class="rc-hero-stat"><div class="rc-hero-stat-num" id="rcStatTotal">0</div><div class="rc-hero-stat-lbl">👥 người</div></div>
+          <div class="rc-hero-stat wolf"><div class="rc-hero-stat-num" id="rcStatWolf">0</div><div class="rc-hero-stat-lbl">🐺 sói</div></div>
+          <div class="rc-hero-stat village"><div class="rc-hero-stat-num" id="rcStatVillage">0</div><div class="rc-hero-stat-lbl">🏡 dân</div></div>
+        </div>
+        <div id="startStatus" class="rc-hero-status hidden"></div>
+        <button class="rc-hero-btn" id="startBtn" onclick="doStart()">🚀 Bắt đầu ván</button>
       </div>
-      <div id="roleGrid" style="margin-top:8px"><span class="muted">Đang tải danh sách vai…</span></div>
-      <div class="muted" style="margin-top:10px">⏱️ Thời gian (giây):</div>
-      <div class="row" style="margin-top:4px">
-        🌙 lượt đêm <input class="num" id="t_action" type="number" min="15" max="300" value="60">
-        🗣️ thảo luận <input class="num" id="t_disc" type="number" min="0" max="300" value="45">
-        🗳️ vote <input class="num" id="t_vote" type="number" min="10" max="180" value="30">
+      <!-- Timer bar -->
+      <div class="rc-timers-bar">
+        <div class="rc-timers-title">⏱ Thời gian mỗi lượt (giây)</div>
+        <div class="rc-timers-row">
+          <label class="rc-timer" title="Thời gian mỗi lượt đêm"><span class="lbl">🌙 Đêm</span><input id="t_action" type="number" min="15" max="300" value="60"></label>
+          <label class="rc-timer" title="Thời gian thảo luận ban ngày"><span class="lbl">💬 Thảo luận</span><input id="t_disc" type="number" min="0" max="300" value="45"></label>
+          <label class="rc-timer" title="Thời gian bỏ phiếu"><span class="lbl">🗳 Vote</span><input id="t_vote" type="number" min="10" max="180" value="30"></label>
+        </div>
       </div>
+      <!-- Search + Grid vai -->
+      <div class="rc-search-wrap">
+        <input id="rcSearch" type="text" placeholder="Tìm vai trò..." oninput="renderRoleConfig()" autocomplete="off">
+        <button id="rcSearchClear" onclick="clearSearch()" title="Xóa">✕</button>
+      </div>
+      <div id="roleGrid"><span class="muted">Đang tải danh sách vai…</span></div>
     </div>
 
-    <div id="memberWait" class="muted hidden" style="margin-top:12px">⌛ Chờ chủ phòng bày vai và bắt đầu. Bấm “Sẵn sàng” khi bạn đã sẵn sàng.</div>
+    <div id="memberWait" class="muted hidden" style="margin-top:12px">⌛ Chờ chủ phòng bày vai và bắt đầu. Bấm "Sẵn sàng" khi bạn đã sẵn sàng.</div>
 
     <div class="row hidden" id="readyRow" style="margin-top:10px">
       <button class="btn btn-ghost" id="readyBtn" onclick="toggleReady()" style="width:auto;margin:0;padding:9px 14px">☐ Sẵn sàng</button>
     </div>
-
-    <button class="btn btn-danger hidden" id="startBtn" onclick="doStart()" style="margin-top:10px">🚀 Bắt đầu</button>
   </section>
 
   <div id="scrGame" class="hidden" style="display:flex;flex-direction:column;gap:12px">
@@ -558,10 +618,10 @@ function handle(m){
       break;
     case 'toast': showToast(m.message); break;
     case 'rooms': renderRooms(m.list); break;
-    case 'roles': roleCatalog=m.roles||[]; if(!Object.keys(roleCounts).length) roleCounts={wolf:1,seer:1}; renderRoleConfig(); break;
+    case 'roles': roleCatalog=m.roles||[]; renderRoleConfig(); break;
     case 'lobby': players=m.players; ownerId=m.ownerId; isOwner=(myId===ownerId); show('scrJoin',false); show('scrLobby',true); show('leaveBtn',true);
       { const rc=$('lobbyRoomCode'); if(rc){ const code=localStorage.getItem('masoi_ws_room')||''; rc.textContent=code?'📌 '+code:''; } }
-      renderRoster('lobbyList'); updVillager(); renderLobby(); break;
+      renderRoster('lobbyList'); if(roleCatalog.length) renderRoleConfig(); updVillager(); renderLobby(); break;
     case 'yourRole': myTeam=m.role.team; renderRole(m); break;
     case 'state': onState(m); break;
     case 'scene':
@@ -597,7 +657,7 @@ function onState(m){
   if(m.ownerId!==undefined){ ownerId=m.ownerId; isOwner=(myId===ownerId); }
   const me=players.find(p=>p.id===myId); myAlive=me?me.alive!==false:true;
   show('scrJoin',false); show('scrLobby',phase==='lobby'); show('scrGame',phase&&phase!=='lobby'); show('leaveBtn',true);
-  if(phase==='lobby'){ renderRoster('lobbyList'); updVillager(); renderLobby(); return; }
+  if(phase==='lobby'){ renderRoster('lobbyList'); if(roleCatalog.length) renderRoleConfig(); updVillager(); renderLobby(); return; }
   renderRoster('playerList'); renderStatusBar(); updateChatTabs(); show('deadBanner',!myAlive);
   if(phase!=='night'){ show('promptBox',false); show('sleepBox',false); clearInterval(promptTimerInt); }
   if(phase!=='day'){ show('voteBox',false); clearCd('vote'); clearCd('day'); }
@@ -896,23 +956,58 @@ function toggleEmo(){ const p=$('emoPal'); if(p.classList.contains('hidden')){ i
 function insEmo(e){ const i=$('chatIn'); if(i.disabled) return; i.value=(i.value+e).slice(0,300); i.focus(); }
 
 /* ── Lobby helpers ── */
+const TEAM_LABEL={'village':'🏡 Phe Làng','wolf':'🐺 Phe Sói','third':'🎭 Phe Thứ Ba','neutral':'⚖️ Trung Lập'};
 function renderRoleConfig(){
   const el=$('roleGrid'); if(!el||!roleCatalog.length) return;
-  const groups=[['village','🏡 Phe Dân'],['wolf','🐺 Phe Sói'],['third','🎭 Phe Thứ Ba'],['neutral','⚖️ Trung Lập']];
+  const q=($('rcSearch')||{value:''}).value.toLowerCase().trim();
+  const groups=[['village','🏡 Phe Làng'],['wolf','🐺 Phe Sói'],['third','🎭 Phe Thứ Ba'],['neutral','⚖️ Trung Lập']];
   let html='';
   for(const [team,label] of groups){
-    const roles=roleCatalog.filter(r=>r.team===team && r.id!=='villager' && r.id!=='littlegirl');
+    let roles=roleCatalog.filter(r=>r.team===team && r.id!=='villager' && r.id!=='littlegirl');
+    if(q) roles=roles.filter(r=>r.name.toLowerCase().includes(q)||(r.desc||'').toLowerCase().includes(q));
     if(!roles.length) continue;
-    html+=`<div class="rgroup">${label}</div><div class="rgrid">`+roles.map(r=>
-      `<div class="rrow"><span class="ri">${r.icon||''}</span><span class="rn">${esc(r.name)}</span>`+
-      `<button class="rstep" onclick="incRole('${r.id}',-1)">−</button>`+
-      `<span class="rc" id="rc_${r.id}">${roleCounts[r.id]||0}</span>`+
-      `<button class="rstep" onclick="incRole('${r.id}',1)">+</button></div>`).join('')+`</div>`;
+    html+=`<div class="rgroup">${label}</div>`;
+    for(const r of roles){
+      const cnt=roleCounts[r.id]||0;
+      const ac=cnt>0?`a-${r.team}`:'';
+      const desc=esc(r.desc||'');
+      html+=`<div class="rcCard ${ac}" id="rcCard_${r.id}" onclick="toggleCardExpand('${r.id}')" title="${desc}">
+        ${cnt>0?`<div class="rcCard-badge-cnt" id="rcBadge_${r.id}">${cnt}</div>`:''}
+        <div class="rcCard-ico">${r.icon||'❓'}</div>
+        <div class="rcCard-name">${esc(r.name)}</div>
+        <div class="rcCard-desc">${desc}</div>
+        <div class="rcCard-footer">
+          <button class="rcStep" onclick="event.stopPropagation();incRole('${r.id}',-1)" ${cnt<=0?'disabled':''}>−</button>
+          <span class="rcNum" id="rc_${r.id}">${cnt}</span>
+          <button class="rcStep" onclick="event.stopPropagation();incRole('${r.id}',1)">+</button>
+        </div>
+      </div>`;
+    }
   }
   el.innerHTML=html;
   updVillager();
 }
-function incRole(id,d){ roleCounts[id]=Math.max(0,(roleCounts[id]||0)+d); const c=$('rc_'+id); if(c)c.textContent=roleCounts[id]; updVillager(); }
+function clearSearch(){ const s=$('rcSearch'); if(s){s.value='';} renderRoleConfig(); }
+function toggleCardExpand(id){ const c=$('rcCard_'+id); if(c) c.classList.toggle('expanded'); }
+function incRole(id,d){
+  const cnt = roleCounts[id]=Math.max(0,(roleCounts[id]||0)+d);
+  const num=$('rc_'+id); if(num) num.textContent=cnt;
+  const card=$('rcCard_'+id);
+  if(card){
+    const r=roleCatalog.find(x=>x.id===id);
+    card.className='rcCard'+(cnt>0&&r?` a-${r.team}`:'');
+    // Cập nhật badge số ở góc
+    let badge=$('rcBadge_'+id);
+    if(cnt>0){
+      if(!badge){ badge=document.createElement('div'); badge.className='rcCard-badge-cnt'; badge.id='rcBadge_'+id; card.insertBefore(badge, card.firstChild); }
+      badge.textContent=cnt;
+    } else if(badge){ badge.remove(); }
+    // Disable nút −  khi count = 0
+    const minusBtn=card.querySelector('.rcStep');
+    if(minusBtn) minusBtn.disabled = cnt<=0;
+  }
+  updVillager();
+}
 function suggestRoles(){   // bộ vai cân bằng theo số người (Dân tự tính phần còn lại)
   const n=players.length; roleCounts={};
   if(n>=4){
@@ -926,9 +1021,16 @@ function suggestRoles(){   // bộ vai cân bằng theo số người (Dân tự
   renderRoleConfig();
 }
 function sumRoles(){ return Object.values(roleCounts).reduce((a,b)=>a+(b||0),0); }
-function updVillager(){ const el=$('villagerCount'); if(!el) return; const vil=players.length-sumRoles();
-  el.textContent = vil>=0 ? vil : `⚠️ dư ${-vil} vai`; el.style.color = vil>=0 ? '' : 'var(--red)';
-  if(isOwner) renderLobby(); }
+function updVillager(){
+  const vil=players.length-sumRoles();
+  const wolfCnt=roleCatalog.filter(r=>r.team==='wolf').reduce((a,r)=>a+(roleCounts[r.id]||0),0);
+  const vilCnt=roleCatalog.filter(r=>r.team==='village'&&r.id!=='villager').reduce((a,r)=>a+(roleCounts[r.id]||0),0)+(vil>=0?vil:0);
+  const st=$('rcStatTotal'),sw=$('rcStatWolf'),sv=$('rcStatVillage');
+  if(st) st.textContent = players.length;
+  if(sw) sw.textContent = wolfCnt;
+  if(sv) sv.textContent = vilCnt;
+  if(isOwner) renderLobby();
+}
 function renderLobby(){
   if(!$('lobbyStatus')) return;
   const others=players.filter(p=>p.id!==ownerId);
@@ -936,15 +1038,20 @@ function renderLobby(){
   const allReady = others.length===0 || readyN===others.length;
   $('lobbyTitle').textContent = isOwner ? '👑 Bạn là chủ phòng' : '✅ Trong phòng';
   $('lobbyStatus').textContent = others.length ? `${readyN}/${others.length} thành viên đã sẵn sàng` : 'Chưa có thành viên khác vào.';
-  show('ownerSetup', isOwner); show('memberWait', !isOwner); show('readyRow', !isOwner); show('startBtn', isOwner);
+  show('ownerSetup', isOwner); show('memberWait', !isOwner); show('readyRow', !isOwner);
   if(isOwner){
     const rolesOk = sumRoles() <= players.length;
-    const canStart = allReady && players.length>=3 && rolesOk;
+    const wolfN = roleCatalog.filter(r=>r.team==='wolf').reduce((a,r)=>a+(roleCounts[r.id]||0),0);
+    const wolfOk = wolfN >= 1;
+    const canStart = allReady && players.length>=3 && rolesOk && wolfOk;
     const b=$('startBtn'); b.disabled=!canStart;
-    b.textContent = players.length<3 ? '🚀 Cần tối thiểu 3 người'
-      : !rolesOk ? '🚀 Quá nhiều vai — giảm bớt'
-      : !allReady ? `⌛ Chờ ${others.length-readyN} người sẵn sàng`
-      : '🚀 Bắt đầu';
+    b.textContent = '🚀 Bắt đầu ván';
+    let msg = '';
+    if(players.length<3) msg = '⌛ Cần tối thiểu 3 người để bắt đầu';
+    else if(!wolfOk) msg = '⚠️ Cần chọn ít nhất 1 vai Sói';
+    else if(!rolesOk) msg = `⚠️ Đang chọn ${sumRoles()} vai nhưng chỉ có ${players.length} người`;
+    else if(!allReady) msg = `⌛ Đang chờ ${others.length-readyN}/${others.length} người bấm sẵn sàng`;
+    const s=$('startStatus'); if(s){ s.textContent=msg; show('startStatus', !!msg); }
   } else {
     const me=players.find(p=>p.id===myId); myReady=!!(me&&me.ready);
     const b=$('readyBtn'); b.textContent=myReady?'✅ Đã sẵn sàng (bấm để hủy)':'☐ Sẵn sàng'; b.classList.toggle('btn-primary',myReady);

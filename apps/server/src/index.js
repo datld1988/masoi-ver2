@@ -217,7 +217,7 @@ const httpServer = createServer(async (req, res) => {
     try {
       const data = await readFile(join(__dirname, '..', 'public', name));
       const ct = name.endsWith('.js') ? 'application/javascript' : 'text/html';
-      res.writeHead(200, { 'Content-Type': ct + '; charset=utf-8' });
+      res.writeHead(200, { 'Content-Type': ct + '; charset=utf-8', 'Cache-Control': 'no-store' });
       res.end(data);
     } catch { res.writeHead(404); res.end(name + ' không tìm thấy'); }
     return;
@@ -347,6 +347,7 @@ wss.on('connection', (ws, req) => {
       if (room && pid && room.hasPlayer(pid)) {
         ws._room = room; ws._pid = pid; sockets.set(pid, ws);
         ws.send(JSON.stringify({ t: 'welcome', id: pid, token: pid, resumed: true }));
+        ws.send(JSON.stringify({ t: 'roles', roles: ROLE_CATALOG }));
         room.resume(pid);
       } else {
         sendErr('Phiên không còn hợp lệ, hãy vào lại phòng.');

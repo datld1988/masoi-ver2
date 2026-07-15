@@ -10,7 +10,20 @@
       "Bash(timeout 6 node --env-file=.env.local src/index.js)",
       "Bash(pnpm add *)",
       "mcp__claude-in-chrome__tabs_context_mcp",
-      "PowerShell(Set-Clipboard *)"
+      "PowerShell(Set-Clipboard *)",
+      "Bash(timeout 5 node --env-file=.env.local src/index.js)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(node --input-type=module)",
+      "Bash(git push *)",
+      "Bash(findstr /N \"roleInfo\\\\|ROLES\\\\|roles.*:\" \"D:\\\\dat\\\\ClaudeCode\\\\masoi\\\\MaSoi_QuanTro.html\")",
+      "Bash(node *)",
+      "Bash(git commit *)",
+      "Bash(cd /d \"D:\\\\dat\\\\ClaudeCode\\\\masoi\")",
+      "Bash(pnpm start *)",
+      "PowerShell(Get-Process *)",
+      "PowerShell(Stop-Process *)",
+      "PowerShell(netstat *)"
     ]
   }
 }
