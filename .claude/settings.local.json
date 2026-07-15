@@ -23,7 +23,10 @@
       "Bash(pnpm start *)",
       "PowerShell(Get-Process *)",
       "PowerShell(Stop-Process *)",
-      "PowerShell(netstat *)"
+      "PowerShell(netstat *)",
+      "Bash(netstat -ano)",
+      "Bash(curl *)",
+      "PowerShell(Get-NetTCPConnection *)"
     ]
   }
 }

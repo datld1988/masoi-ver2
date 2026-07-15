@@ -161,24 +161,75 @@ input:-webkit-autofill,input:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 100
 #rcSearch{width:100%;box-sizing:border-box;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:9px 40px 9px 36px;color:var(--text);font-size:.9rem;outline:none;}
 #rcSearch:focus{border-color:var(--accent);}
 #rcSearchClear{position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--muted);cursor:pointer;font-size:1rem;padding:4px;}
-#roleGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;}
-#roleGrid .rgroup{grid-column:1/-1;font-weight:700;font-size:.82rem;margin:10px 0 2px;padding:6px 10px;background:rgba(255,255,255,.03);border-left:3px solid var(--accent);border-radius:6px;color:var(--text);}
-.rcCard{position:relative;background:var(--surface2);border:1.5px solid var(--border);border-radius:12px;padding:9px 4px 6px;display:flex;flex-direction:column;align-items:center;gap:5px;text-align:center;transition:border-color .12s,background .12s,transform .1s;min-width:0;overflow:hidden;overflow-wrap:break-word;word-break:break-word;cursor:default;}
+/* Tab filter theo phe */
+.rc-tabs{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px;}
+.rc-tab{flex:0 0 auto;display:inline-flex;align-items:center;gap:5px;padding:7px 11px;background:var(--surface2);border:1px solid var(--border);border-radius:20px;color:var(--muted);font-size:.82rem;font-weight:600;cursor:pointer;white-space:nowrap;transition:border-color .1s,background .1s,color .1s;}
+.rc-tab:hover{color:var(--text);border-color:var(--accent);}
+.rc-tab.on{background:var(--accent);border-color:var(--accent);color:#fff;}
+.rc-tab-cnt{background:rgba(0,0,0,.28);border-radius:10px;padding:1px 7px;font-size:.72rem;font-weight:800;font-variant-numeric:tabular-nums;}
+.rc-tab.on .rc-tab-cnt{background:rgba(255,255,255,.22);}
+/* Nút Reset */
+.rc-reset{margin-left:auto;background:none;border:1px solid var(--border);border-radius:8px;color:var(--muted);font-size:.78rem;padding:5px 10px;cursor:pointer;white-space:nowrap;flex-shrink:0;}
+.rc-reset:hover{color:var(--red);border-color:var(--red);}
+/* Grid vai */
+#roleGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;}
+#roleGrid .rgroup{grid-column:1/-1;display:flex;align-items:center;gap:8px;font-weight:700;font-size:.82rem;margin:10px 0 2px;padding:7px 12px;background:rgba(255,255,255,.03);border-left:3px solid var(--accent);border-radius:6px;color:var(--text);}
+#roleGrid .rgroup-cnt{margin-left:auto;font-size:.72rem;color:var(--muted);font-weight:600;background:rgba(0,0,0,.28);border-radius:10px;padding:2px 9px;font-variant-numeric:tabular-nums;}
+/* Empty state khi tìm không thấy */
+.rc-empty{grid-column:1/-1;text-align:center;padding:32px 16px;color:var(--muted);font-size:.9rem;}
+.rc-empty-ico{font-size:2.4rem;margin-bottom:6px;opacity:.7;}
+/* Skeleton loading */
+.rc-skel{grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;}
+.rc-skel-card{height:170px;background:linear-gradient(90deg,var(--surface2) 0%,rgba(255,255,255,.04) 50%,var(--surface2) 100%);background-size:200% 100%;border-radius:12px;animation:skelShim 1.4s infinite linear;}
+@keyframes skelShim{0%{background-position:200% 0}100%{background-position:-200% 0}}
+/* Role card */
+.rcCard{position:relative;background:var(--surface2);border:1.5px solid var(--border);border-radius:12px;padding:10px 5px 7px;display:flex;flex-direction:column;align-items:center;gap:5px;text-align:center;transition:border-color .12s,background .12s,transform .1s,box-shadow .12s;min-width:0;overflow:hidden;overflow-wrap:break-word;word-break:break-word;cursor:pointer;animation:cardIn .22s ease-out;}
+@keyframes cardIn{from{opacity:0;transform:translateY(4px) scale(.96)}to{opacity:1;transform:none}}
 .rcCard:hover{border-color:var(--accent);transform:translateY(-1px);}
 .rcCard.a-wolf{background:linear-gradient(160deg,#1c0505,#2d0a0a);border-color:#dc2626;box-shadow:inset 0 0 0 1px rgba(220,38,38,.25),0 3px 10px rgba(220,38,38,.15);}
 .rcCard.a-village{background:linear-gradient(160deg,#050e1c,#0a1a30);border-color:#3b82f6;box-shadow:inset 0 0 0 1px rgba(59,130,246,.25),0 3px 10px rgba(59,130,246,.15);}
 .rcCard.a-third{background:linear-gradient(160deg,#1a1000,#2d1900);border-color:#f59e0b;box-shadow:inset 0 0 0 1px rgba(245,158,11,.25),0 3px 10px rgba(245,158,11,.15);}
 .rcCard.a-neutral{background:linear-gradient(160deg,#00121a,#001c26);border-color:#0891b2;box-shadow:inset 0 0 0 1px rgba(8,145,178,.25),0 3px 10px rgba(8,145,178,.15);}
-.rcCard-ico{width:38px;height:38px;border-radius:50%;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex-shrink:0;}
-.rcCard-name{font-weight:700;font-size:.78rem;line-height:1.15;padding:0 2px;}
-.rcCard-desc{font-size:.68rem;color:var(--muted);line-height:1.35;padding:2px 4px;flex:1;display:-webkit-box;-webkit-line-clamp:3;line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;}
+.rcCard.pulse{animation:pulseHi .35s ease-out;}
+@keyframes pulseHi{0%{transform:scale(1)}40%{transform:scale(1.06);box-shadow:0 0 0 4px rgba(168,85,247,.25)}100%{transform:scale(1)}}
+.rcCard-ico{width:40px;height:40px;border-radius:50%;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;font-size:1.35rem;flex-shrink:0;}
+.rcCard-name{font-weight:700;font-size:.82rem;line-height:1.2;padding:0 2px;}
+.rcCard-desc{font-size:.75rem;color:var(--muted);line-height:1.4;padding:2px 4px;flex:1;display:-webkit-box;-webkit-line-clamp:3;line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;position:relative;}
 .rcCard.expanded .rcCard-desc{-webkit-line-clamp:unset;line-clamp:unset;}
+.rcCard-more{font-size:.68rem;color:var(--accent);font-weight:700;opacity:.85;letter-spacing:.3px;user-select:none;}
+.rcCard.expanded .rcCard-more{color:var(--muted);}
 .rcCard-footer{display:flex;align-items:center;justify-content:space-between;gap:4px;margin-top:auto;width:100%;padding:0 2px;}
-.rcStep{width:24px;height:24px;border-radius:7px;border:1px solid var(--border);background:rgba(0,0,0,.3);color:var(--text);font-size:.9rem;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;transition:filter .1s,background .1s;}
+.rcStep{width:28px;height:28px;border-radius:8px;border:1px solid var(--border);background:rgba(0,0,0,.3);color:var(--text);font-size:1rem;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;transition:filter .1s,background .1s;flex-shrink:0;}
 .rcStep:hover{background:var(--accent);border-color:var(--accent);filter:brightness(1.1);}
 .rcStep:disabled{opacity:.3;cursor:not-allowed;}
-.rcNum{font-weight:800;font-size:1rem;font-variant-numeric:tabular-nums;flex:1;text-align:center;}
-.rcCard-badge-cnt{position:absolute;top:5px;right:5px;background:var(--accent);color:#fff;font-size:.7rem;font-weight:800;min-width:18px;height:18px;border-radius:9px;display:flex;align-items:center;justify-content:center;padding:0 5px;box-shadow:0 2px 5px rgba(0,0,0,.4);}
+.rcNum{font-weight:800;font-size:1.05rem;font-variant-numeric:tabular-nums;flex:1;text-align:center;}
+.rcCard-badge-cnt{position:absolute;top:5px;right:5px;background:var(--accent);color:#fff;font-size:.72rem;font-weight:800;min-width:20px;height:20px;border-radius:10px;display:flex;align-items:center;justify-content:center;padding:0 6px;box-shadow:0 2px 5px rgba(0,0,0,.4);animation:badgePop .25s ease-out;}
+@keyframes badgePop{from{transform:scale(0)}to{transform:scale(1)}}
+/* Sticky mini-bar khi cuộn khỏi hero */
+#rcMiniBar{position:fixed;top:0;left:0;right:0;z-index:20;background:rgba(18,10,42,.94);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid var(--border);padding:8px 12px;display:none;align-items:center;gap:10px;box-shadow:0 4px 16px rgba(0,0,0,.35);transform:translateY(-100%);transition:transform .22s ease-out;}
+#rcMiniBar.show{display:flex;transform:translateY(0);}
+.rc-mini-stats{display:flex;gap:8px;font-size:.78rem;font-weight:700;font-variant-numeric:tabular-nums;}
+.rc-mini-stats span{display:inline-flex;align-items:center;gap:3px;padding:3px 8px;background:rgba(0,0,0,.3);border-radius:8px;}
+.rc-mini-stats .wolf{color:#f87171;} .rc-mini-stats .village{color:#60a5fa;}
+#rcMiniStart{margin-left:auto;padding:7px 14px;background:linear-gradient(135deg,#dc2626,#a855f7);color:#fff;border:none;border-radius:9px;font-size:.85rem;font-weight:800;cursor:pointer;box-shadow:0 2px 8px rgba(220,38,38,.3);white-space:nowrap;}
+#rcMiniStart:disabled{opacity:.4;cursor:not-allowed;background:linear-gradient(135deg,#4b5563,#374151);box-shadow:none;}
+/* Compact roster khi chỉ có owner */
+.roster.solo{display:flex;justify-content:center;padding:8px 0;}
+.roster.solo .ptile{width:130px;flex:0 0 130px;}
+.rc-solo-hint{margin-top:6px;padding:8px 12px;background:rgba(168,85,247,.08);border:1px solid rgba(168,85,247,.25);border-radius:10px;font-size:.82rem;color:var(--muted);text-align:center;}
+/* Mobile: nút to hơn, grid nhỏ hơn */
+@media (max-width:500px){
+  #roleGrid{grid-template-columns:repeat(auto-fill,minmax(115px,1fr));gap:7px;}
+  .rcStep{width:34px;height:34px;font-size:1.1rem;border-radius:9px;}
+  .rcNum{font-size:1.15rem;}
+  .rcCard{padding:11px 5px 8px;}
+  .rcCard-ico{width:44px;height:44px;font-size:1.5rem;}
+  .rcCard-name{font-size:.85rem;}
+  .rcCard-desc{font-size:.76rem;-webkit-line-clamp:2;line-clamp:2;}
+  .rc-hero-btn{padding:15px;font-size:1.05rem;}
+  .rc-tab{padding:8px 13px;font-size:.86rem;}
+  #rcMiniStart{padding:9px 15px;font-size:.9rem;}
+}
 /* Toast thông báo */
 #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1e1040;border:1px solid var(--accent);color:var(--text);padding:10px 20px;border-radius:12px;font-size:.9rem;z-index:200;opacity:0;transition:opacity .3s;pointer-events:none;}
 #toast.show{opacity:1;}
@@ -284,7 +335,7 @@ input:-webkit-autofill,input:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 100
 
     <div id="ownerSetup">
       <!-- Hero card: tiêu đề + số liệu + trạng thái + nút Bắt đầu -->
-      <div class="rc-hero">
+      <div class="rc-hero" id="rcHero">
         <div class="rc-hero-head">
           <span class="rc-hero-title">🎴 Cấu hình phòng</span>
           <button class="rc-hero-suggest" onclick="suggestRoles()">✨ Gợi ý bộ vai</button>
@@ -306,12 +357,26 @@ input:-webkit-autofill,input:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 100
           <label class="rc-timer" title="Thời gian bỏ phiếu"><span class="lbl">🗳 Vote</span><input id="t_vote" type="number" min="10" max="180" value="30"></label>
         </div>
       </div>
-      <!-- Search + Grid vai -->
-      <div class="rc-search-wrap">
-        <input id="rcSearch" type="text" placeholder="Tìm vai trò..." oninput="renderRoleConfig()" autocomplete="off">
-        <button id="rcSearchClear" onclick="clearSearch()" title="Xóa">✕</button>
+      <!-- Tab filter theo phe -->
+      <div class="rc-tabs" id="rcTabs"></div>
+      <!-- Search + Reset -->
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+        <div class="rc-search-wrap" style="flex:1;margin-bottom:0">
+          <input id="rcSearch" type="text" placeholder="Tìm vai trò..." oninput="renderRoleConfig()" autocomplete="off">
+          <button id="rcSearchClear" onclick="clearSearch()" title="Xóa">✕</button>
+        </div>
+        <button class="rc-reset" onclick="resetRoles()" title="Bỏ chọn tất cả">↺ Reset</button>
       </div>
-      <div id="roleGrid"><span class="muted">Đang tải danh sách vai…</span></div>
+      <div id="roleGrid"><div class="rc-skel"><div class="rc-skel-card"></div><div class="rc-skel-card"></div><div class="rc-skel-card"></div><div class="rc-skel-card"></div><div class="rc-skel-card"></div><div class="rc-skel-card"></div></div></div>
+    </div>
+    <!-- Sticky mini-bar khi cuộn khỏi hero -->
+    <div id="rcMiniBar">
+      <div class="rc-mini-stats">
+        <span>👥 <b id="rcMiniTotal">0</b></span>
+        <span class="wolf">🐺 <b id="rcMiniWolf">0</b></span>
+        <span class="village">🏡 <b id="rcMiniVillage">0</b></span>
+      </div>
+      <button id="rcMiniStart" onclick="doStart()">🚀 Bắt đầu</button>
     </div>
 
     <div id="memberWait" class="muted hidden" style="margin-top:12px">⌛ Chờ chủ phòng bày vai và bắt đầu. Bấm "Sẵn sàng" khi bạn đã sẵn sàng.</div>
@@ -583,6 +648,21 @@ window.addEventListener('load',()=>{
     // Nếu Firebase không load được sau 3s → cho vào thẳng kiểu khách
     setTimeout(()=>{ if($('scrAuth')&&!$('scrAuth').classList.contains('hidden')&&!fbAuth) proceedToJoin(); },3000);
   }
+  // Sticky mini-bar khi cuộn qua hero card
+  let miniTicking=false;
+  window.addEventListener('scroll',()=>{
+    if(miniTicking) return; miniTicking=true;
+    requestAnimationFrame(()=>{
+      const bar=$('rcMiniBar'), hero=$('rcHero'), setup=$('ownerSetup');
+      miniTicking=false;
+      if(!bar||!hero||!setup||!isOwner||setup.classList.contains('hidden')){ if(bar) bar.classList.remove('show'); return; }
+      const heroBottom=hero.getBoundingClientRect().bottom;
+      const setupBottom=setup.getBoundingClientRect().bottom;
+      // Hiện khi hero đã cuộn khỏi viewport nhưng vẫn còn trong ownerSetup
+      const show = heroBottom < 8 && setupBottom > 100;
+      bar.classList.toggle('show', show);
+    });
+  }, {passive:true});
 });
 function sendNewMatch(){ send({t:'newMatch'}); }
 
@@ -957,45 +1037,88 @@ function insEmo(e){ const i=$('chatIn'); if(i.disabled) return; i.value=(i.value
 
 /* ── Lobby helpers ── */
 const TEAM_LABEL={'village':'🏡 Phe Làng','wolf':'🐺 Phe Sói','third':'🎭 Phe Thứ Ba','neutral':'⚖️ Trung Lập'};
+const TEAMS_ORDER=['village','wolf','third','neutral'];
+let rcTeamFilter='all'; // 'all' | 'village' | 'wolf' | 'third' | 'neutral'
+function setTeamFilter(t){ rcTeamFilter=t; renderRoleConfig(); }
+function renderRoleTabs(){
+  const el=$('rcTabs'); if(!el||!roleCatalog.length) return;
+  const totalRoles={all:0}; const chosenRoles={all:0};
+  for(const t of TEAMS_ORDER){ totalRoles[t]=0; chosenRoles[t]=0; }
+  for(const r of roleCatalog){
+    if(r.id==='littlegirl') continue;
+    totalRoles[r.team]=(totalRoles[r.team]||0)+1; totalRoles.all++;
+    const c=roleCounts[r.id]||0; if(c>0){ chosenRoles[r.team]=(chosenRoles[r.team]||0)+1; chosenRoles.all++; }
+  }
+  const tabs=[['all','✨ Tất cả'],['village','🏡 Làng'],['wolf','🐺 Sói'],['third','🎭 Thứ Ba'],['neutral','⚖️ Trung Lập']];
+  el.innerHTML=tabs.map(([id,lbl])=>{
+    const on=rcTeamFilter===id?' on':'';
+    const chosen=chosenRoles[id]||0;
+    return `<button class="rc-tab${on}" onclick="setTeamFilter('${id}')">${lbl}<span class="rc-tab-cnt">${chosen}</span></button>`;
+  }).join('');
+}
+const noDiacritics=s=>String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/đ/g,'d').replace(/Đ/g,'D').toLowerCase();
 function renderRoleConfig(){
   const el=$('roleGrid'); if(!el||!roleCatalog.length) return;
-  const q=($('rcSearch')||{value:''}).value.toLowerCase().trim();
-  const groups=[['village','🏡 Phe Làng'],['wolf','🐺 Phe Sói'],['third','🎭 Phe Thứ Ba'],['neutral','⚖️ Trung Lập']];
-  let html='';
+  renderRoleTabs();
+  const rawQ=($('rcSearch')||{value:''}).value.trim();
+  const q=noDiacritics(rawQ);
+  const groups=TEAMS_ORDER.filter(t=>rcTeamFilter==='all'||rcTeamFilter===t).map(t=>[t,TEAM_LABEL[t]]);
+  let html=''; let totalShown=0;
   for(const [team,label] of groups){
-    let roles=roleCatalog.filter(r=>r.team===team && r.id!=='villager' && r.id!=='littlegirl');
-    if(q) roles=roles.filter(r=>r.name.toLowerCase().includes(q)||(r.desc||'').toLowerCase().includes(q));
+    let roles=roleCatalog.filter(r=>r.team===team && r.id!=='littlegirl');
+    const teamTotal=roles.length;
+    if(q) roles=roles.filter(r=>noDiacritics(r.name).includes(q)||noDiacritics(r.desc||'').includes(q));
     if(!roles.length) continue;
-    html+=`<div class="rgroup">${label}</div>`;
+    const chosen=roles.reduce((a,r)=>a+((roleCounts[r.id]||0)>0?1:0),0);
+    html+=`<div class="rgroup">${label}<span class="rgroup-cnt">${chosen}/${teamTotal} đã chọn</span></div>`;
     for(const r of roles){
       const cnt=roleCounts[r.id]||0;
       const ac=cnt>0?`a-${r.team}`:'';
       const desc=esc(r.desc||'');
-      html+=`<div class="rcCard ${ac}" id="rcCard_${r.id}" onclick="toggleCardExpand('${r.id}')" title="${desc}">
+      html+=`<div class="rcCard ${ac}" id="rcCard_${r.id}" onclick="toggleCardExpand('${r.id}')">
         ${cnt>0?`<div class="rcCard-badge-cnt" id="rcBadge_${r.id}">${cnt}</div>`:''}
         <div class="rcCard-ico">${r.icon||'❓'}</div>
         <div class="rcCard-name">${esc(r.name)}</div>
         <div class="rcCard-desc">${desc}</div>
+        <div class="rcCard-more" id="rcMore_${r.id}">Bấm để xem thêm ▾</div>
         <div class="rcCard-footer">
-          <button class="rcStep" onclick="event.stopPropagation();incRole('${r.id}',-1)" ${cnt<=0?'disabled':''}>−</button>
+          <button class="rcStep rcStep-minus" onclick="event.stopPropagation();incRole('${r.id}',-1)" ${cnt<=0?'disabled':''}>−</button>
           <span class="rcNum" id="rc_${r.id}">${cnt}</span>
           <button class="rcStep" onclick="event.stopPropagation();incRole('${r.id}',1)">+</button>
         </div>
       </div>`;
+      totalShown++;
     }
+  }
+  if(!totalShown){
+    html=`<div class="rc-empty"><div class="rc-empty-ico">🔎</div>${rawQ?`Không tìm thấy vai nào khớp "<b>${esc(rawQ)}</b>"`:'Không có vai trong phe này'}${rawQ?`<br><button class="rc-reset" style="margin-top:12px" onclick="clearSearch()">Xóa tìm kiếm</button>`:''}</div>`;
   }
   el.innerHTML=html;
   updVillager();
 }
 function clearSearch(){ const s=$('rcSearch'); if(s){s.value='';} renderRoleConfig(); }
-function toggleCardExpand(id){ const c=$('rcCard_'+id); if(c) c.classList.toggle('expanded'); }
+function toggleCardExpand(id){
+  const c=$('rcCard_'+id); if(!c) return;
+  c.classList.toggle('expanded');
+  const m=$('rcMore_'+id); if(m) m.textContent=c.classList.contains('expanded')?'Thu gọn ▴':'Bấm để xem thêm ▾';
+}
+function resetRoles(){
+  const has=Object.values(roleCounts).some(v=>v>0);
+  if(!has){ showToast&&showToast('Chưa có vai nào để reset'); return; }
+  roleCounts={}; renderRoleConfig();
+  showToast&&showToast('✓ Đã bỏ chọn tất cả');
+}
 function incRole(id,d){
   const cnt = roleCounts[id]=Math.max(0,(roleCounts[id]||0)+d);
   const num=$('rc_'+id); if(num) num.textContent=cnt;
   const card=$('rcCard_'+id);
   if(card){
     const r=roleCatalog.find(x=>x.id===id);
-    card.className='rcCard'+(cnt>0&&r?` a-${r.team}`:'');
+    // giữ expanded state nếu có
+    const wasExpanded=card.classList.contains('expanded');
+    card.className='rcCard'+(cnt>0&&r?` a-${r.team}`:'')+(wasExpanded?' expanded':'');
+    // pulse animation
+    if(d>0){ card.classList.remove('pulse'); void card.offsetWidth; card.classList.add('pulse'); }
     // Cập nhật badge số ở góc
     let badge=$('rcBadge_'+id);
     if(cnt>0){
@@ -1003,9 +1126,10 @@ function incRole(id,d){
       badge.textContent=cnt;
     } else if(badge){ badge.remove(); }
     // Disable nút −  khi count = 0
-    const minusBtn=card.querySelector('.rcStep');
+    const minusBtn=card.querySelector('.rcStep-minus');
     if(minusBtn) minusBtn.disabled = cnt<=0;
   }
+  renderRoleTabs();
   updVillager();
 }
 function suggestRoles(){   // bộ vai cân bằng theo số người (Dân tự tính phần còn lại)
@@ -1018,17 +1142,25 @@ function suggestRoles(){   // bộ vai cân bằng theo số người (Dân tự
     if(n>=9) roleCounts.hunter=1;
     if(n>=11) roleCounts.cupid=1;
   } else { roleCounts.wolf=1; }
+  const used=Object.values(roleCounts).reduce((a,b)=>a+b,0);
+  if(n-used>0) roleCounts.villager=n-used;
   renderRoleConfig();
 }
 function sumRoles(){ return Object.values(roleCounts).reduce((a,b)=>a+(b||0),0); }
 function updVillager(){
-  const vil=players.length-sumRoles();
+  const chosenVil=roleCounts.villager||0;
+  const vilAuto=Math.max(0, players.length - sumRoles());
   const wolfCnt=roleCatalog.filter(r=>r.team==='wolf').reduce((a,r)=>a+(roleCounts[r.id]||0),0);
-  const vilCnt=roleCatalog.filter(r=>r.team==='village'&&r.id!=='villager').reduce((a,r)=>a+(roleCounts[r.id]||0),0)+(vil>=0?vil:0);
+  const vilCnt=roleCatalog.filter(r=>r.team==='village'&&r.id!=='villager').reduce((a,r)=>a+(roleCounts[r.id]||0),0)+chosenVil+vilAuto;
   const st=$('rcStatTotal'),sw=$('rcStatWolf'),sv=$('rcStatVillage');
   if(st) st.textContent = players.length;
   if(sw) sw.textContent = wolfCnt;
   if(sv) sv.textContent = vilCnt;
+  // Mini-bar
+  const mt=$('rcMiniTotal'),mw=$('rcMiniWolf'),mv=$('rcMiniVillage');
+  if(mt) mt.textContent=players.length;
+  if(mw) mw.textContent=wolfCnt;
+  if(mv) mv.textContent=vilCnt;
   if(isOwner) renderLobby();
 }
 function renderLobby(){
@@ -1046,12 +1178,15 @@ function renderLobby(){
     const canStart = allReady && players.length>=3 && rolesOk && wolfOk;
     const b=$('startBtn'); b.disabled=!canStart;
     b.textContent = '🚀 Bắt đầu ván';
+    const mb=$('rcMiniStart'); if(mb) mb.disabled=!canStart;
     let msg = '';
     if(players.length<3) msg = '⌛ Cần tối thiểu 3 người để bắt đầu';
     else if(!wolfOk) msg = '⚠️ Cần chọn ít nhất 1 vai Sói';
     else if(!rolesOk) msg = `⚠️ Đang chọn ${sumRoles()} vai nhưng chỉ có ${players.length} người`;
     else if(!allReady) msg = `⌛ Đang chờ ${others.length-readyN}/${others.length} người bấm sẵn sàng`;
     const s=$('startStatus'); if(s){ s.textContent=msg; show('startStatus', !!msg); }
+    // Compact roster khi chỉ có mình
+    const rst=$('lobbyList'); if(rst){ rst.classList.toggle('solo', players.length===1); }
   } else {
     const me=players.find(p=>p.id===myId); myReady=!!(me&&me.ready);
     const b=$('readyBtn'); b.textContent=myReady?'✅ Đã sẵn sàng (bấm để hủy)':'☐ Sẵn sàng'; b.classList.toggle('btn-primary',myReady);
@@ -1060,7 +1195,7 @@ function renderLobby(){
 function toggleReady(){ send({t:'ready',value:!myReady}); }
 function doStart(){
   const counts={}; for(const [k,v] of Object.entries(roleCounts)) if(v>0) counts[k]=v;
-  const vil=players.length-Object.values(counts).reduce((a,b)=>a+b,0); if(vil>0) counts.villager=vil;
+  const vil=players.length-Object.values(counts).reduce((a,b)=>a+b,0); if(vil>0) counts.villager=(counts.villager||0)+vil;
   const settings={ actionSec:+$('t_action').value||60, discussionSec:+$('t_disc').value||45, voteSec:+$('t_vote').value||30 };
   send({t:'start',counts,settings});
 }
