@@ -150,6 +150,37 @@ Local dev: `pnpm run start:local` (dùng `--env-file=.env.local`). File `.env.lo
 - Thay đổi **server (room.js/index.js/engine)** → **phải redeploy/restart**. Thay đổi **chỉ client** (`player-ws.html`) → chỉ cần Ctrl+F5. Lịch sử cuối trận dựng ở server nên đổi nó = phải redeploy.
 - **Bản Firebase → `firebase deploy`** (chạy trong thư mục `masoi-online/`), aliases `masoi` (prod `masoi-online-9e660`) và `masoi-staging`.
 
+## UX/UI Lobby (player-ws.html) — đã refactor lớn
+
+Toàn bộ ở `apps/server/public/player-ws.html` (client-only, không cần redeploy). Cấu trúc scrLobby: header row → `#lobbyList` (roster) → `#lobbyStatus` → `#ownerSetup` (hero card + timers + tabs + search+reset + `#roleGrid`) → `#rcMiniBar` (fixed) → `#memberWait` / `#readyRow`.
+
+### Đã làm
+- **Solo hero** khi `isOwner && players.length===1`: `renderRoster` render riêng — owner tile 150px float animation + 👑 crown wiggle + 3 slot placeholder pulse + hint "💫 Gửi 🔗 link mời cho bạn bè" (click chữ "link mời" gọi `copyInviteLink()`). Bỏ text "Chưa có thành viên khác vào."
+- **Hero card cấu hình**: gradient tím, 3 stat cột (👥/🐺/🏡), status warning màu vàng, nút Bắt đầu gradient đỏ→tím. Nút "✨ Gợi ý bộ vai" set cả `roleCounts.villager` = phần dư.
+- **Timer bar**: label 🌙 Đêm / 💬 Thảo luận / 🗳 Vote (input `width:32px !important` để không chiếm full-width).
+- **Tab filter theo phe** (`#rcTabs`): ✨ Tất cả / 🏡 Làng / 🐺 Sói / 🎭 Thứ Ba / ⚖️ Trung Lập, mỗi tab kèm số vai đã chọn. `flex-wrap:wrap; justify-content:center` để 3+2 hàng cân đối.
+- **Search + Reset**: input tìm dùng `noDiacritics()` (`NFD` + strip combining marks + đ↔d) — gõ không dấu ra kết quả có dấu. Nút `↺ Reset` xóa toàn bộ `roleCounts`.
+- **Grid vai** `#roleGrid`: `auto-fill minmax(130px,1fr)` — tự adapt 2-6 cột theo width. Mỗi card: badge count góc, icon 40px, tên, desc 3 dòng ellipsis + "Bấm để xem thêm ▾"/"Thu gọn ▴", footer `−/n/+`. Animation `cardIn` fade-in, `pulseHi` khi +, `badgePop` badge.
+- **Section header** kèm counter `chosen/total đã chọn` bên phải.
+- **Skeleton loading** 6 card shimmer khi chưa nhận `roles` từ server.
+- **Empty state** khi search không match: icon 🔎 + text + nút "Xóa tìm kiếm".
+- **Sticky mini-bar** `#rcMiniBar` (position:fixed top:0): stats + nút Bắt đầu (disabled sync với `#startBtn`). Toggle qua scroll listener trong `window.addEventListener('load')` — hiện khi `hero.getBoundingClientRect().bottom < 8 && setup.bottom > 100`.
+- **Vai "Dân Làng"** hiển thị trong grid Phe Làng (như bản offline). `doStart()` cộng dồn `counts.villager = (counts.villager||0) + vil` (không override).
+- **Mobile ≤500px**: grid `minmax(115px,1fr)`, nút `.rcStep` 34×34, icon card 44px, desc `-webkit-line-clamp:2`.
+- **Desktop ≥1024px (P0)**: `main{max-width:1100px}`, `#scrLobby.two-col` grid 2 cột `340px | 1fr` — trái: roster+status, phải: ownerSetup (`grid-row:2/span 30`). Grid vai adapt lên `minmax(140px,1fr)` (5-6 cột). ≥1400px: 1280px. Toggle `.two-col` trong `renderLobby` khi `isOwner`. Auth/Join/Game màn giữ max-width nhỏ (`520/520/820px`).
+- **iOS safe-area (P0)**: `env(safe-area-inset-*)` padding cho `header` (top+L+R), `main` (L+R+bottom), `#rcMiniBar` (top+L+R), `.statusbar` (`top:env(...)`).
+
+### Còn lại (P1/P2) — chưa làm
+- **P1 UX**: collapse phe headers (click header thu gọn), toggle "chỉ hiện đã chọn", preset templates ngoài "Gợi ý" (Cơ bản 8/Cân bằng 12/Full 20+), back-to-top FAB.
+- **P2 App native**: Capacitor Haptics (rung khi bấm), Share API (thay `navigator.clipboard`), intercept hardware back Android (mở modal xác nhận), PWA manifest.json + adaptive icon, WS reconnect khi app resume từ background.
+
+### Gotchas UI
+- **Smart quotes trong HTML attributes** (`"` U+201C/D) làm parser vỡ — luôn dùng ASCII `"`. Có 1 dòng dùng smart quote trong nội dung tiếng Việt hiển thị (`listRooms` empty state) → OK vì trong text content, không phải attribute.
+- **`.rc-tabs` phải `justify-content:center`** — không thì hàng 2 (Trung Lập lẻ loi bên trái) lệch.
+- **`.roster.solo` cũ đã bỏ** — dùng `renderRoster` render solo hero HTML riêng, không dùng flex trên grid gốc (bị tile teo về 0).
+- **`text-wrap:balance`** trong `.solo-hint` hỗ trợ Chrome/Safari mới; text đã rút ngắn để 1 dòng cho browser cũ.
+- **Server đã bỏ filter `r.id!=='villager'`** khỏi `renderRoleTabs`/`renderRoleConfig` — vẫn giữ trong `updVillager` vì tính riêng `chosenVil` + `vilAuto`.
+
 ## Phase 3 — Việc tiếp theo (bắt buộc để lên store)
 
 1. **Kiểm duyệt chat**: lọc từ ngữ tục/thô (badword list hoặc AI moderation), block user
