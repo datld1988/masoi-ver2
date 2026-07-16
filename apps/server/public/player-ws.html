@@ -166,6 +166,42 @@ input:-webkit-autofill,input:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 100
 .tseat{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--surface);border:1px solid var(--border);font-size:.72rem;font-weight:700;flex-shrink:0;}
 .tbtn.sel .tseat{background:var(--accent);border-color:var(--accent);color:#fff;} .tbtn.sel::after{content:'✓';position:absolute;right:9px;color:#e9d5ff;font-weight:800;}
 .sleep{text-align:center;padding:30px 10px;} .dead-banner{background:#450a0a;border:1px solid #7f1d1d;color:#fca5a5;border-radius:12px;padding:10px 14px;text-align:center;font-weight:700;}
+/* Spectator HUD */
+.spec-hud{background:linear-gradient(160deg,rgba(80,20,100,.35),rgba(20,10,45,.9) 60%);border:1px solid rgba(168,85,247,.35);position:relative;overflow:hidden;}
+.spec-hud::before{content:'👻';position:absolute;right:-10px;top:-14px;font-size:6rem;opacity:.07;transform:rotate(15deg);pointer-events:none;}
+.spec-hd{margin-bottom:10px;}
+.spec-title{font-family:Georgia,serif;font-size:1.2rem;font-weight:800;color:#e2d9ff;letter-spacing:1px;text-shadow:0 2px 12px rgba(168,85,247,.5);}
+.spec-sub{font-size:.78rem;color:var(--muted);margin-top:2px;font-style:italic;}
+.spec-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:12px;}
+.spec-stat{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:8px 6px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:2px;}
+.spec-stat .ico{font-size:1.1rem;line-height:1;}
+.spec-stat b{font-size:1.15rem;color:#f5f0ff;font-variant-numeric:tabular-nums;}
+.spec-stat .lbl{font-size:.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;}
+.spec-stat-dead{border-color:rgba(239,68,68,.3);background:rgba(239,68,68,.08);} .spec-stat-dead b{color:#fca5a5;}
+.spec-stat-time b{color:var(--gold);} .spec-stat-time.low b{color:#ff8888;animation:sbPulse 1s infinite;}
+.spec-section-hd{display:flex;align-items:center;gap:8px;font-size:.82rem;font-weight:700;color:#c9b6ff;margin:8px 0 6px;}
+.spec-cnt{font-size:.7rem;color:var(--muted);background:rgba(255,255,255,.06);padding:1px 8px;border-radius:9px;font-weight:500;}
+.spec-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:5px;}
+.spec-mini{position:relative;display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 3px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:9px;transition:transform .12s;}
+.spec-mini:hover{transform:translateY(-1px);}
+.spec-mini img{width:38px;height:38px;border-radius:8px;background:#1a103a;}
+.spec-mini .nm{font-size:.68rem;color:#e2d9ff;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60px;}
+.spec-mini.dead img{filter:grayscale(1) brightness(.55);}
+.spec-mini.dead::after{content:'💀';position:absolute;top:2px;right:2px;font-size:.9rem;text-shadow:0 0 6px rgba(0,0,0,.8);}
+.spec-mini.dead .nm{color:#8b8ab8;text-decoration:line-through;text-decoration-color:rgba(239,68,68,.5);}
+.spec-mini.me{border-color:var(--gold);box-shadow:0 0 0 2px rgba(197,151,84,.25);}
+.spec-graveyard,.spec-alive-sec{margin-top:6px;}
+.spec-actions{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;}
+.spec-btn{flex:1;min-width:120px;padding:8px 12px;border:1px solid rgba(168,85,247,.4);background:rgba(168,85,247,.12);color:#e2d9ff;border-radius:10px;font-size:.85rem;font-weight:600;cursor:pointer;transition:background .12s,transform .1s;}
+.spec-btn:hover{background:rgba(168,85,247,.25);}
+.spec-btn:active{transform:scale(.97);}
+@media (max-width:640px){
+  .spec-stats{grid-template-columns:repeat(2,1fr);}
+  .spec-list{grid-template-columns:repeat(auto-fill,minmax(58px,1fr));}
+  .spec-mini img{width:34px;height:34px;}
+  .spec-mini .nm{font-size:.64rem;}
+  .spec-title{font-size:1.05rem;}
+}
 /* Reveal card */
 .rv-group{margin-bottom:14px;}
 .rv-group-hd{display:flex;align-items:center;gap:8px;font-weight:700;color:#e2d9ff;font-size:.9rem;margin-bottom:6px;padding:0 2px;}
@@ -330,7 +366,8 @@ input:-webkit-autofill,input:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 100
   .game-stack{display:grid;grid-template-columns:minmax(280px,320px) 1fr;column-gap:16px;row-gap:12px;align-items:start;}
   /* Full-width top */
   .game-stack > .statusbar,
-  .game-stack > .dead-banner{grid-column:1/-1;}
+  .game-stack > .dead-banner,
+  .game-stack > .spec-hud{grid-column:1/-1;}
   /* Cột TRÁI: chỉ 2 card cố định — sticky nhóm để không tạo khoảng trắng */
   .game-stack > .g-role,
   .game-stack > .g-roster{grid-column:1;}
@@ -527,6 +564,31 @@ input:-webkit-autofill,input:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 100
   <div id="scrGame" class="hidden game-stack">
     <div class="statusbar" id="statusBar"></div>
     <div class="dead-banner hidden" id="deadBanner">👻 Bạn đã chết – theo dõi với tư cách khán giả</div>
+
+    <section class="card spec-hud hidden" id="spectatorHud">
+      <div class="spec-hd">
+        <div class="spec-title">🎬 Chế độ Khán giả</div>
+        <div class="spec-sub" id="specSub">Bạn đang xem ván từ nghĩa địa</div>
+      </div>
+      <div class="spec-stats">
+        <div class="spec-stat"><span class="ico">👥</span><b id="specAlive">-</b><span class="lbl">sống</span></div>
+        <div class="spec-stat spec-stat-dead"><span class="ico">💀</span><b id="specDead">-</b><span class="lbl">chết</span></div>
+        <div class="spec-stat"><span class="ico">🌙</span><b id="specPhase">-</b><span class="lbl" id="specPhaseLbl">phase</span></div>
+        <div class="spec-stat spec-stat-time"><span class="ico">⏱</span><b id="specTimer">--</b><span class="lbl">còn</span></div>
+      </div>
+      <div class="spec-graveyard">
+        <div class="spec-section-hd">🪦 Nghĩa địa <span class="spec-cnt" id="specGraveCnt">0</span></div>
+        <div class="spec-list" id="specDeadList"></div>
+      </div>
+      <div class="spec-alive-sec">
+        <div class="spec-section-hd">👥 Đang sống <span class="spec-cnt" id="specAliveCnt">0</span></div>
+        <div class="spec-list" id="specAliveList"></div>
+      </div>
+      <div class="spec-actions">
+        <button class="spec-btn" onclick="setChatCh('dead');document.getElementById('chatBox').scrollIntoView({behavior:'smooth'})">👻 Chat Âm phủ</button>
+        <button class="spec-btn" onclick="document.getElementById('histBox').scrollIntoView({behavior:'smooth'})">📜 Lịch sử</button>
+      </div>
+    </section>
 
     <section class="card g-role">
       <div class="title">🃏 Vai của bạn</div>
@@ -922,8 +984,14 @@ function onState(m){
     show('deadBanner',true); showDeathModal&&showDeathModal();
     if(deadBannerHideTimer) clearTimeout(deadBannerHideTimer);
     deadBannerHideTimer=setTimeout(()=>{ show('deadBanner',false); }, 6000);
+    // Auto switch chat sang Âm phủ khi vừa chết
+    if(typeof chatCh!=='undefined' && chatCh==='main'){ chatCh='dead'; updateChatTabs(); }
   } else if(myAlive){ show('deadBanner',false); if(deadBannerHideTimer){clearTimeout(deadBannerHideTimer);deadBannerHideTimer=null;} }
   prevAlive=myAlive;
+  // Spectator HUD: hiện khi đã chết & ván đang chạy
+  const inGame = phase==='night'||phase==='day';
+  show('spectatorHud', !myAlive && inGame);
+  if(!myAlive && inGame) renderSpectatorHud();
   if(phase!=='night'){ show('promptBox',false); show('sleepBox',false); clearInterval(promptTimerInt); }
   if(phase!=='day'){ show('voteBox',false); clearCd('vote'); clearCd('day'); }
   if(phase==='day') show('dayBox',true);
@@ -938,6 +1006,52 @@ function onState(m){
     }
   }
 }
+
+/* ── Render Spectator HUD ── */
+function renderSpectatorHud(){
+  const hud=$('spectatorHud'); if(!hud) return;
+  const alive=players.filter(p=>p.alive!==false);
+  const dead=players.filter(p=>p.alive===false);
+  $('specAlive').textContent=alive.length;
+  $('specDead').textContent=dead.length;
+  if(phase==='night'){ $('specPhase').textContent='Đêm '+(meta.nightNo||1); $('specPhaseLbl').textContent='màn đêm'; }
+  else if(phase==='day'){ $('specPhase').textContent='Ngày '+(meta.dayNo||1); $('specPhaseLbl').textContent='ban ngày'; }
+  else { $('specPhase').textContent='-'; $('specPhaseLbl').textContent='phase'; }
+  // Timer đồng bộ với statusbar timer (dùng lại nội dung sbTimer)
+  syncSpectatorTimer();
+  // Nghĩa địa
+  const gLst=$('specDeadList');
+  gLst.innerHTML = dead.length ? dead.map(p=>{
+    const meCls = p.id===myId ? ' me':'';
+    return `<div class="spec-mini dead${meCls}" title="${esc(p.name)}${p.id===myId?' (bạn)':''}">
+      <img src="${dicebearUrl(p.name)}" alt="" loading="lazy">
+      <span class="nm">${esc(p.name)}</span>
+    </div>`;
+  }).join('') : '<div class="muted" style="grid-column:1/-1;text-align:center;padding:6px;font-size:.78rem">Chưa có ai chết</div>';
+  $('specGraveCnt').textContent=dead.length;
+  // Đang sống
+  const aLst=$('specAliveList');
+  aLst.innerHTML = alive.length ? alive.map(p=>`<div class="spec-mini" title="${esc(p.name)}">
+      <img src="${dicebearUrl(p.name)}" alt="" loading="lazy">
+      <span class="nm">${esc(p.name)}</span>
+    </div>`).join('') : '<div class="muted" style="grid-column:1/-1;text-align:center;padding:6px;font-size:.78rem">Không còn ai sống</div>';
+  $('specAliveCnt').textContent=alive.length;
+  // Sub message
+  const sub=$('specSub');
+  if(sub){
+    if(phase==='night') sub.textContent='🌙 Các vai đang hành động ban đêm — bạn xem từ nghĩa địa';
+    else if(phase==='day') sub.textContent='☀️ Cả làng đang thảo luận / bỏ phiếu';
+    else sub.textContent='Bạn đang xem ván từ nghĩa địa';
+  }
+}
+function syncSpectatorTimer(){
+  const el=$('specTimer'); const src=$('sbTimer'); if(!el||!src) return;
+  const txt=(src.textContent||'').replace(/^⏱\s*/,'').trim();
+  el.textContent = txt||'--';
+  const stat=el.closest('.spec-stat');
+  if(stat) stat.classList.toggle('low', src.classList.contains('low'));
+}
+setInterval(()=>{ try{ if(!myAlive) syncSpectatorTimer(); }catch(e){} }, 500);
 
 /* ── Render ── */
 function renderStatusBar(){
