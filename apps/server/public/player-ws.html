@@ -1145,8 +1145,15 @@ function renderPrompt(){
           </div>
         </div>
       </div>`).join('')+`</div>
-      <button class="tava-skip-link" onclick="submitSkip()">⏭ Bỏ lượt (hoặc chờ hết giờ)</button>`;
-    show('pConfirm',false); show('pSkip',false);
+      <div class="muted" style="font-size:.75rem;margin-top:6px;text-align:center">Chạm 1 lần = chọn · Chạm lại = bỏ chọn · Hết giờ = bỏ lượt</div>`;
+    // Nút Xác nhận chỉ enable khi đã chọn đủ; nút Bỏ lượt luôn có (thay cho chờ hết giờ)
+    const okBtn=$('pConfirm'); if(okBtn){
+      const need=max, have=sel.length;
+      const enough = max===1 ? have>=1 : have===max;
+      okBtn.disabled=!enough;
+      okBtn.textContent = enough ? `✔️ Xác nhận (${have}${max>1?'/'+max:''})` : (max>1?`Chọn thêm ${max-have} người`:'Chọn 1 người để xác nhận');
+    }
+    show('pConfirm',true); show('pSkip',true);
   }
   clearInterval(promptTimerInt); const ring=$('pRing'),wrap=$('pRingWrap'); ring.style.strokeDasharray=RING_C;
   let lastSecTick=null;
@@ -1165,17 +1172,20 @@ function tapTarget(id){
   const max=curPrompt.max||1;
   const i=sel.indexOf(id);
   if(i>=0){
-    // Chạm lần 2 vào người đã chọn → bỏ chọn
-    sel.splice(i,1); renderPrompt();
+    // Chạm lần 2 vào người đã chọn → bỏ chọn (không auto submit)
+    sel.splice(i,1);
   } else if(max===1){
-    // Single-select: chọn & xác nhận ngay (delay nhỏ để thấy highlight)
-    sel=[id]; renderPrompt();
-    setTimeout(submitAction,160);
+    // Single-select: chọn (thay thế lựa chọn cũ nếu có), KHÔNG auto submit
+    sel=[id];
+  } else if(sel.length<max){
+    // Multi-select: thêm vào, KHÔNG auto submit — user tự bấm Xác nhận
+    sel.push(id);
   } else {
-    // Multi-select (Cupid=2, Sói+SóiCon=2): thêm vào, auto-confirm khi đủ
-    sel.push(id); renderPrompt();
-    if(sel.length>=max) setTimeout(submitAction,160);
+    // Đã đủ max — chạm người mới không hiệu lực, gợi ý bỏ chọn ai đó
+    showToast&&showToast(`Đã chọn đủ ${max} người — bỏ chọn ai đó trước`);
+    return;
   }
+  renderPrompt();
 }
 function pickWitch(k,id){ witchSel[k]=witchSel[k]===id?null:id; renderPrompt(); }
 function submitAction(){ if(!curPrompt) return;
