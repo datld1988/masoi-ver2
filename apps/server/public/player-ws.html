@@ -302,14 +302,37 @@ input:-webkit-autofill,input:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 100
   #scrLobby.two-col #roleGrid{grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:9px;}
   #scrLobby.two-col .rc-hero{margin-top:0;}
   #scrLobby.two-col .roster-solo .solo-owner .ptile{width:140px;}
-  /* In-game: 1 cột center 820px cho tight & liền lạc (không tạo khoảng trắng lệch cột) */
-  #scrGame{max-width:820px;margin-left:auto;margin-right:auto;}
+  /* In-game desktop: grid 2 cột — trái (Vai+Người chơi) sticky compact, phải (prompt/day/vote/chat/lịch sử) flow theo phase */
+  .game-stack{display:grid;grid-template-columns:minmax(280px,320px) 1fr;column-gap:16px;row-gap:12px;align-items:start;}
+  /* Full-width top */
+  .game-stack > .statusbar,
+  .game-stack > .dead-banner{grid-column:1/-1;}
+  /* Cột TRÁI: chỉ 2 card cố định — sticky nhóm để không tạo khoảng trắng */
+  .game-stack > .g-role,
+  .game-stack > .g-roster{grid-column:1;}
+  .game-stack > .g-role{position:sticky;top:70px;z-index:2;}
+  .game-stack > .g-role .role-card{height:230px;}
+  /* Roster tile nhỏ hơn để nhồi trong cột hẹp */
+  .game-stack > .g-roster .roster{grid-template-columns:repeat(auto-fill,minmax(78px,1fr));gap:5px;}
+  .game-stack > .g-roster .ptile-name{font-size:.68rem;}
+  .game-stack > .g-roster .ptile-seat{font-size:.62rem;}
+  /* Cột PHẢI: tất cả phần còn lại */
+  .game-stack > #sleepBox,
+  .game-stack > #promptBox,
+  .game-stack > #resultBox,
+  .game-stack > #dayBox,
+  .game-stack > #voteBox,
+  .game-stack > #chatBox,
+  .game-stack > #histBox{grid-column:2;}
+  /* endBox (Chơi lại + Reveal): full-width hero card ở cuối */
+  .game-stack > #endBox{grid-column:1/-1;}
 }
-/* Desktop rộng hơn ≥1400px: role grid dày đặc hơn */
+/* Desktop rộng hơn ≥1400px: role grid dày đặc hơn + in-game rộng hơn */
 @media (min-width:1400px){
   main{max-width:1280px;}
   #scrLobby.two-col{grid-template-columns:minmax(300px,360px) 1fr;}
   #scrLobby.two-col #roleGrid{grid-template-columns:repeat(auto-fill,minmax(130px,1fr));}
+  .game-stack{grid-template-columns:minmax(300px,340px) 1fr;}
 }
 /* Toast thông báo */
 #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1e1040;border:1px solid var(--accent);color:var(--text);padding:10px 20px;border-radius:12px;font-size:.9rem;z-index:200;opacity:0;transition:opacity .3s;pointer-events:none;}
