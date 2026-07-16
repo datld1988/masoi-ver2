@@ -21,6 +21,30 @@ header .room{margin-left:auto;font-size:.8rem;color:var(--muted);font-weight:400
 .hdr-btn:active{transform:scale(.96);}
 .hdr-btn.danger:hover{background:rgba(239,68,68,.18);border-color:#ef4444;color:#fecaca;}
 @media (max-width:640px){ header .brand{font-size:.95rem;} .hdr-btn{height:34px;padding:0 8px;} .hdr-btn .lbl{display:none;} .hdr-btn .ico{font-size:1.1rem;} }
+/* Polish mobile: các card nhỏ gọn hơn */
+@media (max-width:640px){
+  /* Statusbar: chip nhỏ hơn để không wrap 3 dòng; ẩn 'Phòng' text, chỉ giữ mã */
+  .statusbar{gap:4px;padding:6px 10px;font-size:.76rem;}
+  .sb-chip{padding:2px 7px;gap:3px;font-size:.76rem;}
+  .sb-room .rlbl{display:none;}
+  .sb-room{padding:2px 7px;}
+  /* Reveal card: giảm min để 2 cột trên phone */
+  .rv-list{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));}
+  .rv-item{padding:6px 8px;gap:8px;}
+  .rv-av{width:34px;height:34px;}
+  .rv-name{font-size:.8rem;}
+  .rv-role{font-size:.68rem;}
+  /* Role card: giảm chiều cao */
+  .role-card{height:230px;}
+  .role-plate .nm{font-size:1.2rem;}
+  /* Tava tile lớn hơn: min 100px */
+  .tava-grid{grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:7px;}
+}
+@media (max-width:380px){
+  .rv-list{grid-template-columns:1fr;}
+  .tava-grid{grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:5px;}
+  .statusbar{font-size:.72rem;}
+}
 main{position:relative;z-index:1;flex:1;padding:14px;padding-left:calc(14px + env(safe-area-inset-left));padding-right:calc(14px + env(safe-area-inset-right));padding-bottom:calc(14px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:12px;max-width:520px;margin:0 auto;width:100%;}
 .card{background:rgba(26,18,48,.72);backdrop-filter:blur(9px) saturate(1.1);-webkit-backdrop-filter:blur(9px);border:1px solid var(--border);border-radius:14px;padding:14px;box-shadow:0 10px 34px rgba(0,0,0,.42);}
 .title{font-weight:700;margin-bottom:10px;} .muted{color:var(--muted);font-size:.85rem;} .hidden{display:none!important;} .center{text-align:center;} .big{font-size:3rem;}
@@ -906,6 +930,12 @@ function onState(m){
   else if(phase==='ended'){ // Khi kết thúc: chỉ giữ dayBox nếu có nội dung diễn biến
     const ann=($('announce')&&$('announce').textContent||'').trim();
     show('dayBox', !!ann);
+    // Đảm bảo endBox (Chơi lại + Reveal) LUÔN hiện khi ended — kể cả khi resume ván đã kết thúc mà chưa nhận gameOver
+    const endBox=$('endBox'); if(endBox && endBox.classList.contains('hidden')){
+      show('endBox',true);
+      const et=$('endTitle'); if(et && !et.textContent) et.textContent='🏁 Ván đã kết thúc';
+      const er=$('endReveal'); if(er && !er.innerHTML.trim()) er.innerHTML='<div class="muted" style="text-align:center;padding:8px">Chưa có dữ liệu reveal (bạn vào sau khi ván kết thúc).</div>';
+    }
   }
 }
 
@@ -916,7 +946,7 @@ function renderStatusBar(){
   if(phase==='night') ph=`🌙 Đêm ${meta.nightNo||''}`; else if(phase==='day') ph=`☀️ Ngày ${meta.dayNo||''}`; else if(phase==='ended') ph='🏁 Kết thúc';
   const roomCode=localStorage.getItem('masoi_ws_room')||'';
   const parts=[`<span class="sb-chip sb-phase">${ph}</span>`,`<span class="sb-chip sb-timer" id="sbTimer">⏱ --</span>`,`<span class="sb-chip sb-alive">👥 ${alive}/${total}</span>`];
-  if(roomCode) parts.push(`<button class="sb-chip sb-room" title="Bấm để sao chép mã phòng" onclick="copyRoomCode()">🏷 Phòng <b>${esc(roomCode)}</b> 📋</button>`);
+  if(roomCode) parts.push(`<button class="sb-chip sb-room" title="Bấm để sao chép mã phòng" onclick="copyRoomCode()">🏷<span class="rlbl"> Phòng</span> <b>${esc(roomCode)}</b> 📋</button>`);
   if(!myAlive) parts.push('<span class="sb-chip sb-dead">👻 Đã chết</span>');
   $('statusBar').innerHTML=parts.join('');
   syncStatusTimer();
