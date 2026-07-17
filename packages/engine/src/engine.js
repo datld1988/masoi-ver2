@@ -1236,10 +1236,13 @@ function checkWin(state) {
     return { winner: 'third', reason: 'serialkiller', desc: `${a[0].name} là người sống sót cuối cùng!` };
   if (a.length === 1 && a[0].roleId === 'whitewolf')
     return { winner: 'wolf', reason: 'whitewolf', desc: `Sói Trắng ${a[0].name} phản bội tất cả!` };
-  if (wolves.length === 0 && !skAlive && !fluteAlive)
+  if (wolves.length === 0 && !skAlive)
     return { winner: 'village', reason: 'allWolvesDead', desc: 'Toàn bộ Ma Sói đã bị tiêu diệt!' };
-  if (wolves.length > 0 && !skAlive && !fluteAlive && wolves.length >= villagers.length)
-    return { winner: 'wolf', reason: 'wolfMajority', desc: `Sói (${wolves.length}) ≥ Dân (${villagers.length})!` };
+  // Sói thắng khi ≥ tổng "có thể bị cắn" (Dân + Chàng Thổi Sáo nếu còn sống).
+  // Flute check ở trên đã ưu tiên: nếu Flute enchant hết trước thì đã return 'third'.
+  const eatable = villagers.length + (fluteAlive ? 1 : 0);
+  if (wolves.length > 0 && !skAlive && wolves.length >= eatable)
+    return { winner: 'wolf', reason: 'wolfMajority', desc: `Sói (${wolves.length}) ≥ Dân (${eatable})!` };
   return null;
 }
 

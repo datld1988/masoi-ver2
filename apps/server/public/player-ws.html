@@ -6,7 +6,20 @@
 <meta name="theme-color" content="#0f0a1e">
 <title>🐺 Ma Sói – Người Chơi (server)</title>
 <style>
-:root{--bg:#0f0a1e;--surface:#1a1230;--surface2:#251a40;--border:#3b2d5e;--text:#ede9fe;--muted:#9d8fc7;--accent:#a855f7;--red:#f87171;--green:#4ade80;--gold:#fbbf24;}
+:root{
+  /* Palette — 6 màu chuẩn */
+  --bg:#0f0a1e;--surface:#1a1230;--surface2:#251a40;--border:#3b2d5e;
+  --text:#ede9fe;--muted:#9d8fc7;
+  --primary:#a855f7;--accent:#a855f7; /* tím */
+  --danger:#f87171;--red:#f87171;     /* đỏ */
+  --success:#4ade80;--green:#4ade80;  /* xanh lá */
+  --info:#60a5fa;                     /* xanh dương */
+  --gold:#fbbf24;                     /* vàng */
+  /* Spacing tokens */
+  --gap-xs:4px;--gap-sm:8px;--gap-md:12px;--gap-lg:20px;
+  /* Touch target tối thiểu */
+  --touch:44px;
+}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
 html,body{height:100%;}
 body{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,sans-serif;display:flex;flex-direction:column;overflow-x:hidden;}
@@ -20,7 +33,7 @@ header .room{margin-left:auto;font-size:.8rem;color:var(--muted);font-weight:400
 .hdr-btn:hover{background:rgba(168,85,247,.15);border-color:var(--accent);}
 .hdr-btn:active{transform:scale(.96);}
 .hdr-btn.danger:hover{background:rgba(239,68,68,.18);border-color:#ef4444;color:#fecaca;}
-@media (max-width:640px){ header .brand{font-size:.95rem;} .hdr-btn{height:34px;padding:0 8px;} .hdr-btn .lbl{display:none;} .hdr-btn .ico{font-size:1.1rem;} }
+@media (max-width:640px){ header .brand{font-size:.95rem;} .hdr-btn{height:40px;min-width:40px;padding:0 10px;} .hdr-btn .lbl{display:none;} .hdr-btn .ico{font-size:1.15rem;} }
 /* Polish mobile: các card nhỏ gọn hơn */
 @media (max-width:640px){
   /* Statusbar: chip nhỏ hơn để không wrap 3 dòng; ẩn 'Phòng' text, chỉ giữ mã */
@@ -39,6 +52,13 @@ header .room{margin-left:auto;font-size:.8rem;color:var(--muted);font-weight:400
   .role-plate .nm{font-size:1.2rem;}
   /* Tava tile lớn hơn: min 100px */
   .tava-grid{grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:7px;}
+  /* Density: card gọn hơn, gap giữa các card nhỏ hơn */
+  .card{padding:12px;}
+  main{gap:var(--gap-sm);padding:12px;padding-left:calc(12px + env(safe-area-inset-left));padding-right:calc(12px + env(safe-area-inset-right));padding-bottom:calc(12px + env(safe-area-inset-bottom));}
+  /* Sleep box padding gọn */
+  .sleep{padding:22px 10px;}
+  /* Title trong card gọn hơn */
+  .card > .title{margin-bottom:8px;font-size:.95rem;}
 }
 @media (max-width:380px){
   .rv-list{grid-template-columns:1fr;}
@@ -70,7 +90,9 @@ input:-webkit-autofill,input:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 100
 .peek-fab:active{transform:scale(.94);}
 .role-tilt{position:relative;width:100%;height:100%;transform-style:preserve-3d;transition:transform .12s ease-out;transform:rotateX(var(--tx,0deg)) rotateY(var(--ty,0deg));}
 .role-inner{position:relative;width:100%;height:100%;transition:transform .35s;transform-style:preserve-3d;}
-.role-card.show .role-inner{transform:rotateY(180deg);}
+.role-card.show .role-inner,.role-card.revealed .role-inner{transform:rotateY(180deg);}
+.role-card.revealed .peek-fab{display:none;}
+.role-card.revealed::after{content:'💀 Đã lộ vai vì bạn đã chết';position:absolute;left:50%;bottom:8px;transform:translateX(-50%);font-size:.68rem;color:#fca5a5;background:rgba(0,0,0,.55);padding:3px 10px;border-radius:10px;pointer-events:none;letter-spacing:.3px;}
 .role-face{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden;border-radius:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;border:2px solid var(--border);}
 .role-back{background:repeating-linear-gradient(45deg,var(--surface2),var(--surface2) 12px,var(--surface) 12px,var(--surface) 24px);}
 .role-front{background:#15102a;transform:rotateY(180deg);border-color:#9d7c3e;overflow:hidden;box-shadow:inset 0 0 0 1px rgba(201,165,92,.5),0 0 22px rgba(201,165,92,.14);}
@@ -83,7 +105,7 @@ input:-webkit-autofill,input:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 100
 .role-shine{position:absolute;inset:0;border-radius:14px;pointer-events:none;opacity:0;transition:opacity .2s;background:radial-gradient(circle at var(--gx,50%) var(--gy,40%),rgba(255,255,255,.22),transparent 44%);mix-blend-mode:screen;z-index:5;}
 .role-card.tilting .role-shine{opacity:1;}
 /* ── Roster — tile grid kiểu Wolvesville ── */
-.roster{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:6px;}
+.roster{display:grid;grid-template-columns:repeat(auto-fill,minmax(108px,1fr));gap:7px;}
 /* Tile hình chữ nhật dọc (3:4), nền trời → rừng */
 .ptile{position:relative;border-radius:14px;overflow:hidden;aspect-ratio:3/4;
   background:linear-gradient(180deg,#5b9ec9 0%,#2f6b9a 38%,#1a3d5c 68%,#0c1e2e 100%);
@@ -116,15 +138,32 @@ input:-webkit-autofill,input:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 100
   background:linear-gradient(0deg,rgba(0,0,0,.65) 0%,transparent 100%);}
 .ptile-online{width:7px;height:7px;border-radius:50%;flex-shrink:0;border:1.5px solid rgba(0,0,0,.4);}
 .ptile-sub{font-size:.58rem;color:rgba(255,255,255,.6);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-/* Dead overlay */
+/* Dead overlay — mạnh hơn: skull to + gạch chéo đỏ + backdrop tối */
 .ptile-dead-ov{position:absolute;inset:0;z-index:4;display:flex;align-items:center;justify-content:center;
-  font-size:1.8rem;background:rgba(0,0,0,.25);pointer-events:none;}
+  font-size:2.4rem;background:rgba(0,0,0,.45);pointer-events:none;
+  filter:drop-shadow(0 2px 6px rgba(0,0,0,.7));}
+.ptile.dead::after{content:'';position:absolute;inset:0;z-index:3;pointer-events:none;
+  background:linear-gradient(135deg,transparent 47%,rgba(239,68,68,.55) 48%,rgba(239,68,68,.55) 52%,transparent 53%);}
+/* "Bạn" badge nổi bật hơn */
+.ptile.me{position:relative;}
+.ptile.me::before{content:'BẠN';position:absolute;top:-8px;left:50%;transform:translateX(-50%);z-index:6;
+  font-size:.58rem;font-weight:800;letter-spacing:1px;color:#fff;
+  background:linear-gradient(135deg,var(--primary),#c084fc);
+  padding:2px 8px;border-radius:8px;box-shadow:0 2px 6px rgba(168,85,247,.5);}
 /* Badge sẵn sàng / chưa sẵn sàng */
 .ptile-badge{position:absolute;bottom:20px;left:50%;transform:translateX(-50%);z-index:4;
   font-size:.58rem;font-weight:700;border-radius:6px;padding:2px 6px;white-space:nowrap;
   border:1px solid;pointer-events:none;}
 .ptile-badge.ready{background:rgba(74,222,128,.15);border-color:var(--green);color:var(--green);}
 .ptile-badge.waiting{background:rgba(0,0,0,.25);border-color:#6b7280;color:#9ca3af;}
+.ptile-badge.owner{background:rgba(251,191,36,.18);border-color:var(--gold);color:var(--gold);text-shadow:0 1px 3px rgba(0,0,0,.5);}
+/* Viền vàng cho tile chủ phòng (trong grid thường, không phải solo hero) */
+.ptile.owner{border-color:var(--gold);box-shadow:0 0 0 2px rgba(251,191,36,.35),0 4px 14px rgba(251,191,36,.18);}
+.ptile.owner.me{box-shadow:0 0 0 2px rgba(251,191,36,.4),0 0 0 4px rgba(168,85,247,.25);}
+/* Crown 👑 nhỏ trên góc tile */
+.ptile-crown{position:absolute;top:-10px;left:50%;transform:translateX(-50%);z-index:7;
+  font-size:1.2rem;filter:drop-shadow(0 2px 4px rgba(251,191,36,.55));pointer-events:none;
+  animation:crownWiggle 4s ease-in-out infinite;transform-origin:center bottom;}
 /* Report button */
 .ptile-report{position:absolute;top:3px;right:3px;z-index:5;background:rgba(0,0,0,.3);border:none;
   border-radius:4px;color:rgba(255,255,255,.4);font-size:.6rem;cursor:pointer;padding:2px 4px;line-height:1;
@@ -139,6 +178,9 @@ input:-webkit-autofill,input:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 100
 .tava:active{transform:scale(.94);}
 @media (hover:hover){ .tava:not(.sel):hover{border-color:#7c5fc7;box-shadow:0 0 0 2px rgba(168,85,247,.25),0 4px 14px rgba(0,0,0,.4);transform:translateY(-2px);} }
 .tava.sel{border-color:var(--accent);box-shadow:0 0 0 3px rgba(168,85,247,.5),0 6px 20px rgba(168,85,247,.3);animation:tavaPulse .35s ease-out;}
+/* Vote grid ở chế độ khán giả (đã chết): chỉ xem, không click */
+.tava.dead-view{cursor:not-allowed;opacity:.7;filter:saturate(.6);}
+.tava.dead-view:active{transform:none;}
 @keyframes tavaPulse{0%{transform:scale(.94);}60%{transform:scale(1.04);}100%{transform:scale(1);}}
 .p-progress{display:inline-block;font-size:.75rem;padding:2px 9px;border-radius:9px;background:rgba(168,85,247,.2);border:1px solid rgba(168,85,247,.5);color:var(--accent);margin-left:6px;font-variant-numeric:tabular-nums;vertical-align:middle;}
 /* Viền sáng khi được chọn */
@@ -321,21 +363,46 @@ input:-webkit-autofill,input:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 100
 .solo-crown{position:absolute;top:-14px;left:50%;transform:translateX(-50%);font-size:1.6rem;filter:drop-shadow(0 3px 8px rgba(251,191,36,.55));animation:crownWiggle 4s ease-in-out infinite;}
 @keyframes crownWiggle{0%,100%{transform:translateX(-50%) rotate(-6deg)}50%{transform:translateX(-50%) rotate(6deg)}}
 .solo-owner-lbl{margin-top:8px;font-size:.86rem;color:var(--gold);font-weight:800;letter-spacing:.5px;text-shadow:0 2px 8px rgba(251,191,36,.35);}
-.solo-slots{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:4px;}
+.solo-slots{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:4px;align-items:flex-start;}
 .solo-slot{width:74px;aspect-ratio:3/4;border:2px dashed rgba(168,85,247,.4);border-radius:12px;background:linear-gradient(180deg,rgba(168,85,247,.06),rgba(0,0,0,.2));display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:var(--muted);animation:slotPulse 2.6s ease-in-out infinite;}
 .solo-slot:nth-child(2){animation-delay:.4s;} .solo-slot:nth-child(3){animation-delay:.8s;}
 .solo-slot-ico{font-size:1.5rem;opacity:.6;}
 .solo-slot-lbl{font-size:.62rem;font-weight:700;opacity:.65;letter-spacing:.3px;text-transform:uppercase;}
 @keyframes slotPulse{0%,100%{opacity:.55;transform:scale(1)}50%{opacity:1;transform:scale(1.03);border-color:rgba(168,85,247,.75)}}
+/* Solo slot REAL — tile của người chơi khác (không phải chủ phòng), cạnh nhỏ 84px */
+.solo-slot-real{position:relative;display:flex;flex-direction:column;align-items:center;gap:4px;animation:cardIn .22s ease-out;}
+.solo-slot-real .ptile{width:84px;aspect-ratio:3/4;}
+.solo-slot-real .ptile-name{font-size:.62rem;}
+.solo-slot-real .ptile-seat{font-size:.58rem;}
+/* Status pill dưới tile (Sẵn sàng / Chờ / Offline) */
+.solo-slot-status{font-size:.6rem;font-weight:800;padding:2px 7px;border-radius:6px;white-space:nowrap;line-height:1.25;letter-spacing:.2px;}
+.solo-slot-status.ready{background:rgba(74,222,128,.15);border:1px solid var(--success);color:var(--success);}
+.solo-slot-status.waiting{background:rgba(0,0,0,.28);border:1px solid #6b7280;color:#9ca3af;}
+.solo-slot-status.offline{background:rgba(239,68,68,.12);border:1px solid var(--danger);color:var(--danger);}
 .solo-hint{font-size:.86rem;color:var(--text);background:linear-gradient(90deg,rgba(168,85,247,.14),rgba(220,38,38,.1));border:1px solid rgba(168,85,247,.3);border-radius:12px;padding:10px 18px;max-width:340px;line-height:1.5;text-wrap:balance;white-space:normal;}
 .solo-hint b{color:var(--gold);}
 .solo-hint-link{color:var(--gold);font-weight:800;cursor:pointer;text-decoration:underline;text-decoration-color:rgba(251,191,36,.4);text-underline-offset:2px;transition:color .15s,text-decoration-color .15s;}
 .solo-hint-link:hover{color:#fde68a;text-decoration-color:var(--gold);}
 .solo-hint-link:active{opacity:.7;}
+/* Mobile touch targets ≥44px (Apple HIG) — áp cho toàn bộ mobile */
+@media (max-width:640px){
+  /* Chat input row: nút gửi/emoji phải chạm được */
+  #chatBox .btn-primary,
+  #chatBox .btn-ghost{min-height:var(--touch);min-width:var(--touch);}
+  #chatIn{min-height:var(--touch);padding:11px 14px;font-size:16px;} /* 16px chống zoom iOS */
+  /* Vote & target picker card đã aspect 3/4 nên đủ to; nhưng nút "Bỏ lượt" nhỏ → bump */
+  .tava-skip-link{min-height:var(--touch);padding:12px 0 8px;}
+  /* Ptile report ⚑ trong game khó bấm — to hơn cho mobile */
+  .ptile-report{min-width:28px;min-height:28px;padding:5px 6px;font-size:.7rem;}
+  /* Prompt confirm/skip buttons */
+  #pConfirm,#pSkip{min-height:var(--touch);}
+  /* Chat tab buttons */
+  #chatTabs .btn-ghost{min-height:40px;}
+}
 /* Mobile: nút to hơn, grid nhỏ hơn */
 @media (max-width:500px){
   #roleGrid{grid-template-columns:repeat(auto-fill,minmax(115px,1fr));gap:7px;}
-  .rcStep{width:34px;height:34px;font-size:1.1rem;border-radius:9px;}
+  .rcStep{width:38px;height:38px;font-size:1.1rem;border-radius:9px;}
   .rcNum{font-size:1.15rem;}
   .rcCard{padding:11px 5px 8px;}
   .rcCard-ico{width:44px;height:44px;font-size:1.5rem;}
@@ -394,6 +461,58 @@ input:-webkit-autofill,input:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 100
   #scrLobby.two-col{grid-template-columns:minmax(300px,360px) 1fr;}
   #scrLobby.two-col #roleGrid{grid-template-columns:repeat(auto-fill,minmax(130px,1fr));}
   .game-stack{grid-template-columns:minmax(300px,340px) 1fr;}
+}
+/* ── Bottom Navigation (mobile in-game, 3 tab contextual) ── */
+#bottomNav{position:fixed;bottom:0;left:0;right:0;z-index:18;
+  display:none;align-items:stretch;gap:var(--gap-xs);
+  background:rgba(18,10,42,.96);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  border-top:1px solid var(--border);
+  padding:6px 6px;
+  padding-bottom:calc(6px + env(safe-area-inset-bottom));
+  padding-left:calc(6px + env(safe-area-inset-left));
+  padding-right:calc(6px + env(safe-area-inset-right));
+  box-shadow:0 -6px 24px rgba(0,0,0,.5);}
+#bottomNav.show{display:flex;}
+@media (min-width:1024px){ #bottomNav{display:none!important;} }
+.bn-tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+  min-height:var(--touch);padding:6px 4px;
+  background:none;border:none;color:var(--muted);cursor:pointer;
+  border-radius:10px;transition:color .12s,background .12s,transform .1s;position:relative;}
+.bn-tab:active{transform:scale(.94);background:rgba(168,85,247,.15);}
+.bn-tab.on{color:var(--primary);}
+.bn-tab.on::before{content:'';position:absolute;top:2px;left:50%;transform:translateX(-50%);
+  width:32px;height:3px;border-radius:2px;background:var(--primary);}
+.bn-tab .bn-ico{font-size:1.4rem;line-height:1;}
+.bn-tab .bn-lbl{font-size:.68rem;font-weight:700;letter-spacing:.2px;white-space:nowrap;}
+/* Badge số tin chưa đọc trên tab Chat */
+.bn-tab .bn-dot{position:absolute;top:4px;right:calc(50% - 20px);
+  min-width:8px;height:8px;border-radius:50%;background:var(--danger);
+  border:1.5px solid var(--bg);}
+/* Chừa chỗ dưới cho bottom nav */
+@media (max-width:1023px){
+  body.bn-active main{padding-bottom:calc(78px + env(safe-area-inset-bottom));}
+  /* Ẩn tất cả section/div trong scrGame khi bn-active, chỉ hiển thị theo tab đang chọn */
+  body.bn-active #scrGame > section,
+  body.bn-active #scrGame > div:not(.statusbar):not(.dead-banner){display:none;}
+  /* Luôn hiện: statusbar + dead-banner (tôn trọng .hidden nếu có) */
+  body.bn-active #scrGame > .statusbar,
+  body.bn-active #scrGame > .dead-banner{display:block;}
+  /* Tab Main: role/sleep/prompt/result/day/vote/end + spec-hud (khán giả) */
+  body.bn-active.bn-main #scrGame > .spec-hud,
+  body.bn-active.bn-main #scrGame > .g-role,
+  body.bn-active.bn-main #scrGame > #sleepBox,
+  body.bn-active.bn-main #scrGame > #promptBox,
+  body.bn-active.bn-main #scrGame > #resultBox,
+  body.bn-active.bn-main #scrGame > #dayBox,
+  body.bn-active.bn-main #scrGame > #voteBox,
+  body.bn-active.bn-main #scrGame > #endBox{display:block;}
+  /* Khi là khán giả: ẩn role card trên main tab (đã chết, không cần xem vai lại) — chỉ hiện spec-hud */
+  body.bn-active.bn-spec.bn-main #scrGame > .g-role{display:none;}
+  /* Tab Chat: chatBox (+ histBox khi ended) */
+  body.bn-active.bn-chat #scrGame > #chatBox{display:block;}
+  body.bn-active.bn-chat.bn-ended #scrGame > #histBox{display:block;}
+  /* Tab Players: roster */
+  body.bn-active.bn-players #scrGame > .g-roster{display:block;}
 }
 /* Toast thông báo */
 #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1e1040;border:1px solid var(--accent);color:var(--text);padding:10px 20px;border-radius:12px;font-size:.9rem;z-index:200;opacity:0;transition:opacity .3s;pointer-events:none;}
@@ -669,6 +788,7 @@ input:-webkit-autofill,input:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 100
     </section>
   </div>
 </main>
+<nav id="bottomNav" aria-label="Điều hướng game"></nav>
 
 <script src="role-art.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -956,7 +1076,12 @@ function handle(m){
     case 'voteOpen': renderVote(m); break;
     case 'voteTally': $('voteStatus').textContent='Phiếu: '+Object.entries(m.tally).map(([i,c])=>`${(players[i]&&players[i].name)||('#'+i)}:${c}`).join('  ·  '); break;
     case 'day': show('voteBox',false); clearCd('vote'); clearCd('day'); $('announce').textContent=(m.lines||[]).join('\n'); pushHist(`⚖️ Ngày ${meta.dayNo||''}`.trim(), m.lines); break;
-    case 'chatMsg': (chatBuf[m.channel]||=[]).push(m); if(m.channel===chatCh) renderChat(); break;
+    case 'chatMsg': (chatBuf[m.channel]||=[]).push(m); if(m.channel===chatCh) renderChat();
+      /* Tăng badge chưa đọc nếu đang ở tab khác + không phải tin của mình */
+      if(document.body.classList.contains('bn-active') && !document.body.classList.contains('bn-chat')){
+        const meName=(players.find(p=>p.id===myId)||{}).name; if(m.from!==meName){ bnChatUnread++; updateBottomNav(); }
+      }
+      break;
     case 'gameOver': renderEnd(m); if(m.history) renderFinalHistory(m.history); sndWin(); break;
     case 'newMatch': {
       histItems=[]; if($('histList'))$('histList').innerHTML=''; show('histBox',false);
@@ -964,6 +1089,7 @@ function handle(m){
       show('endBox',false); show('dayBox',false); show('resultBox',false); show('promptBox',false); show('sleepBox',false);
       curPrompt=null; myTeam=null; myVote=null; chatBuf={main:[],wolf:[],dead:[]};
       const ra=$('rArt'); if(ra){ ra.innerHTML=''; ra.dataset.role=''; } $('announce').textContent='';
+      { const rc=$('roleCard'); if(rc) rc.classList.remove('revealed','show'); }
       break;
     }
     case 'error': $('pErr').textContent=m.message||''; $('joinErr').textContent=m.message||'';
@@ -978,7 +1104,12 @@ function onState(m){
   if(m.ownerId!==undefined){ ownerId=m.ownerId; isOwner=(myId===ownerId); }
   const me=players.find(p=>p.id===myId); myAlive=me?me.alive!==false:true;
   show('scrJoin',false); show('scrLobby',phase==='lobby'); show('scrGame',phase&&phase!=='lobby'); show('leaveBtn',true);
-  if(phase==='lobby'){ renderRoster('lobbyList'); if(roleCatalog.length) renderRoleConfig(); updVillager(); renderLobby(); prevAlive=true; return; }
+  if(phase==='lobby'){ renderRoster('lobbyList'); if(roleCatalog.length) renderRoleConfig(); updVillager(); renderLobby(); prevAlive=true;
+    /* Cleanup bottom nav khi về lobby */
+    document.body.classList.remove('bn-active','bn-main','bn-chat','bn-players','bn-night','bn-day','bn-ended');
+    const bn=$('bottomNav'); if(bn) bn.classList.remove('show');
+    return;
+  }
   renderRoster('playerList'); renderStatusBar(); updateChatTabs();
   if(!myAlive && prevAlive){
     show('deadBanner',true); showDeathModal&&showDeathModal();
@@ -992,6 +1123,11 @@ function onState(m){
   const inGame = phase==='night'||phase==='day';
   show('spectatorHud', !myAlive && inGame);
   if(!myAlive && inGame) renderSpectatorHud();
+  // Auto-reveal vai khi đã chết (giữ card lật sẵn, ẩn nút peek)
+  { const rc=$('roleCard'); if(rc){
+      if(!myAlive) rc.classList.add('revealed');
+      else rc.classList.remove('revealed');
+  }}
   if(phase!=='night'){ show('promptBox',false); show('sleepBox',false); clearInterval(promptTimerInt); }
   if(phase!=='day'){ show('voteBox',false); clearCd('vote'); clearCd('day'); }
   if(phase==='day') show('dayBox',true);
@@ -1053,6 +1189,62 @@ function syncSpectatorTimer(){
 }
 setInterval(()=>{ try{ if(!myAlive) syncSpectatorTimer(); }catch(e){} }, 500);
 
+/* ── Bottom Navigation (3 tab contextual theo phase) ── */
+let bnTab='main';           // 'main' | 'chat' | 'players'
+let bnChatUnread=0;         // đếm tin chưa đọc khi không ở tab chat
+function updateBottomNav(){
+  const nav=$('bottomNav'); if(!nav) return;
+  const body=document.body;
+  const inGame = phase==='night'||phase==='day'||phase==='ended';
+  // Reset phase & role class
+  body.classList.remove('bn-night','bn-day','bn-ended','bn-spec');
+  // Ẩn CHỈ khi không trong game/ended. Còn lại luôn hiện (kể cả khán giả đã chết).
+  if(!inGame){
+    nav.classList.remove('show');
+    body.classList.remove('bn-active','bn-main','bn-chat','bn-players');
+    return;
+  }
+  body.classList.add('bn-active','bn-'+phase);
+  const isSpec = !myAlive && phase!=='ended';       // khán giả trong ván đang chạy
+  if(isSpec) body.classList.add('bn-spec');
+  // Đảm bảo có tab active
+  if(!body.classList.contains('bn-main') && !body.classList.contains('bn-chat') && !body.classList.contains('bn-players')){
+    body.classList.add('bn-'+bnTab);
+  }
+  nav.classList.add('show');
+  let tabs;
+  if(isSpec){
+    // Khán giả (đã chết, ván đang chạy): tab 1 = 👻 HUD khán giả (thay vì Vai/Vote)
+    tabs=[{id:'main',ico:'👻',lbl:'Khán giả'},{id:'chat',ico:'💬',lbl:'Chat âm phủ'},{id:'players',ico:'👥',lbl:'Người chơi'}];
+  } else if(phase==='night'){
+    tabs=[{id:'main',ico:'🎭',lbl:'Vai'},{id:'chat',ico:'💬',lbl:'Chat'},{id:'players',ico:'👥',lbl:'Người chơi'}];
+  } else if(phase==='day'){
+    tabs=[{id:'main',ico:'🗳',lbl:'Bỏ phiếu'},{id:'chat',ico:'💬',lbl:'Chat'},{id:'players',ico:'👥',lbl:'Người chơi'}];
+  } else {
+    // Ended: chỉ 2 tab — Kết quả (đã có reveal theo phe = "Người chơi + Phe thắng") + Lịch sử
+    tabs=[{id:'main',ico:'🏆',lbl:'Kết quả & Reveal'},{id:'chat',ico:'📜',lbl:'Lịch sử'}];
+    // Nếu đang ở tab players (từ phase trước) → tự chuyển về main
+    if(body.classList.contains('bn-players')){ body.classList.remove('bn-players'); body.classList.add('bn-main'); bnTab='main'; }
+  }
+  nav.innerHTML=tabs.map(t=>{
+    const on=body.classList.contains('bn-'+t.id);
+    const dot=(t.id==='chat'&&!on&&bnChatUnread>0)?'<span class="bn-dot" title="Có tin mới"></span>':'';
+    return `<button class="bn-tab${on?' on':''}" onclick="setBnTab('${t.id}')" aria-label="${t.lbl}"><span class="bn-ico">${t.ico}</span><span class="bn-lbl">${t.lbl}</span>${dot}</button>`;
+  }).join('');
+}
+function setBnTab(id){
+  bnTab=id;
+  const body=document.body;
+  body.classList.remove('bn-main','bn-chat','bn-players');
+  body.classList.add('bn-'+id);
+  if(id==='chat') bnChatUnread=0;
+  updateBottomNav();
+  // Cuộn lên đầu khi đổi tab (mobile)
+  if(window.matchMedia('(max-width:1023px)').matches){
+    window.scrollTo({top:0,behavior:'smooth'});
+  }
+}
+
 /* ── Render ── */
 function renderStatusBar(){
   const alive=players.filter(p=>p.alive!==false).length, total=players.length;
@@ -1063,6 +1255,7 @@ function renderStatusBar(){
   if(roomCode) parts.push(`<button class="sb-chip sb-room" title="Bấm để sao chép mã phòng" onclick="copyRoomCode()">🏷<span class="rlbl"> Phòng</span> <b>${esc(roomCode)}</b> 📋</button>`);
   if(!myAlive) parts.push('<span class="sb-chip sb-dead">👻 Đã chết</span>');
   $('statusBar').innerHTML=parts.join('');
+  updateBottomNav();
   syncStatusTimer();
 }
 function syncStatusTimer(){
@@ -1084,19 +1277,53 @@ function renderRoster(elId){
   const el=$(elId); if(!el) return;
   const inGame=(elId==='playerList');
   const seats=[...players].sort((a,b)=>(a.seat||0)-(b.seat||0));
-  // Solo hero khi ở lobby và chỉ có mình owner
-  if(!inGame && isOwner && players.length===1){
-    const p=seats[0];
-    const col=avaColor(p.name);
-    el.className='roster-solo';
-    el.innerHTML=`<div class="solo-wrap">
-      <div class="solo-owner">
-        <div class="solo-crown">👑</div>
-        <div class="ptile me">
+  // Solo hero style — chủ phòng LUÔN ở big tile trên cùng, những người khác làm small tiles bên dưới
+  if(!inGame && isOwner){
+    const meP=players.find(p=>p.id===myId)||seats[0];
+    const meCol=avaColor(meP.name);
+    const meSeat=(meP.seat||0)+1;
+    // Others: mọi player ≠ me, sort theo seat
+    const others=seats.filter(p=>p.id!==myId);
+    const MIN_SLOTS=3;                              // luôn có tối thiểu 3 chỗ (kể cả trống)
+    const totalSlots=Math.max(MIN_SLOTS, others.length);
+    const emptyCount=totalSlots-others.length;
+    // HTML tile lớn của chủ phòng
+    const heroHtml=`<div class="solo-owner">
+      <div class="solo-crown">👑</div>
+      <div class="ptile me">
+        <div class="ptile-forest"></div>
+        <div class="ptile-header">
+          <span class="ptile-seat">${meSeat}</span>
+          <span class="ptile-name">⭐ ${esc(meP.name)}</span>
+        </div>
+        <div class="ptile-body">
+          <div class="ptile-ava" style="background:${meCol}">
+            <span class="ptile-ava-init">${esc(avaInit(meP.name))}</span>
+            <img src="${dicebearUrl(meP.name)}" alt="" loading="lazy" onerror="this.style.display='none'">
+          </div>
+        </div>
+        <div class="ptile-footer">
+          <span class="ptile-online" style="background:var(--green)"></span>
+        </div>
+      </div>
+      <div class="solo-owner-lbl">Chủ phòng</div>
+    </div>`;
+    // HTML từng người khác (real slot)
+    const realSlots=others.map(p=>{
+      const online=p.connected!==false;
+      const col=avaColor(p.name);
+      const seatN=(p.seat||0)+1;
+      const onlineCol=online?'var(--green)':'#6b7280';
+      let status='';
+      if(!online) status=`<div class="solo-slot-status offline">📴 Offline</div>`;
+      else if(p.ready===true) status=`<div class="solo-slot-status ready">✓ Sẵn sàng</div>`;
+      else status=`<div class="solo-slot-status waiting">⏳ Chờ</div>`;
+      return `<div class="solo-slot-real">
+        <div class="ptile">
           <div class="ptile-forest"></div>
           <div class="ptile-header">
-            <span class="ptile-seat">1</span>
-            <span class="ptile-name">⭐ ${esc(p.name)}</span>
+            <span class="ptile-seat">${seatN}</span>
+            <span class="ptile-name">${esc(p.name)}</span>
           </div>
           <div class="ptile-body">
             <div class="ptile-ava" style="background:${col}">
@@ -1105,17 +1332,21 @@ function renderRoster(elId){
             </div>
           </div>
           <div class="ptile-footer">
-            <span class="ptile-online" style="background:var(--green)"></span>
+            <span class="ptile-online" style="background:${onlineCol}"></span>
           </div>
         </div>
-        <div class="solo-owner-lbl">Chủ phòng</div>
-      </div>
-      <div class="solo-slots">
-        <div class="solo-slot"><div class="solo-slot-ico">👤</div><div class="solo-slot-lbl">Trống</div></div>
-        <div class="solo-slot"><div class="solo-slot-ico">👤</div><div class="solo-slot-lbl">Trống</div></div>
-        <div class="solo-slot"><div class="solo-slot-ico">👤</div><div class="solo-slot-lbl">Trống</div></div>
-      </div>
-      <div class="solo-hint">💫 Gửi <a class="solo-hint-link" onclick="copyInviteLink()">🔗 link mời</a> cho bạn bè</div>
+        ${status}
+      </div>`;
+    }).join('');
+    // Placeholder trống
+    const emptySlots=Array.from({length:emptyCount},()=>`<div class="solo-slot"><div class="solo-slot-ico">👤</div><div class="solo-slot-lbl">Trống</div></div>`).join('');
+    // Hint chỉ hiện khi chưa đủ 3 người (khớp ngưỡng min room)
+    const hint=(others.length<2)?`<div class="solo-hint">💫 Gửi <a class="solo-hint-link" onclick="copyInviteLink()">🔗 link mời</a> cho bạn bè</div>`:'';
+    el.className='roster-solo';
+    el.innerHTML=`<div class="solo-wrap">
+      ${heroHtml}
+      <div class="solo-slots">${realSlots}${emptySlots}</div>
+      ${hint}
     </div>`;
     return;
   }
@@ -1126,16 +1357,21 @@ function renderRoster(elId){
     const col=alive?avaColor(p.name):'#3a4555';
     const onlineCol=alive?(online?'var(--green)':'#6b7280'):'#dc2626';
     const subTxt=!alive?'Đã chết':(!online?'offline':'');
+    const isOwnerP=p.id===ownerId;
     const reportBtn=inGame&&!me
       ?`<button class="ptile-report" onclick="reportPlayer('${p.id}','${esc(p.name).replace(/'/g,"\\'")}',event)" title="Báo cáo">⚑</button>`:'';
     const deadOv=!alive?`<div class="ptile-dead-ov">💀</div>`:'';
+    /* Crown 👑 cho chủ phòng (lobby, khi không phải solo hero) */
+    const crown=(!inGame && isOwnerP)?`<div class="ptile-crown" title="Chủ phòng">👑</div>`:'';
     let badge='';
     if(!inGame){
-      if(p.ready===true) badge=`<div class="ptile-badge ready">✓ Sẵn sàng</div>`;
+      if(isOwnerP) badge=`<div class="ptile-badge owner">👑 Chủ phòng</div>`;
+      else if(p.ready===true) badge=`<div class="ptile-badge ready">✓ Sẵn sàng</div>`;
       else if(p.ready===false&&!me) badge=`<div class="ptile-badge waiting">⏳ chờ</div>`;
     }
-    return `<div class="ptile${alive?'':' dead'}${me?' me':''}">
+    return `<div class="ptile${alive?'':' dead'}${me?' me':''}${!inGame&&isOwnerP?' owner':''}">
       <div class="ptile-forest"></div>
+      ${crown}
       <div class="ptile-header">
         <span class="ptile-seat">${seatNum}</span>
         <span class="ptile-name">${me?'⭐ ':''}${esc(p.name)}</span>
@@ -1326,7 +1562,12 @@ const stepVi=t=>({
 }[t]||t);
 
 function renderVote(m){
-  show('voteBox',true); voteOptions=m.options||[]; myVote=null; drawVote(); $('voteStatus').textContent='Chưa vote – bấm để chọn.';
+  show('voteBox',true); voteOptions=m.options||[]; myVote=null; drawVote();
+  if(!myAlive){
+    $('voteStatus').textContent='👻 Bạn đã chết – chỉ xem, không thể bỏ phiếu.';
+  } else {
+    $('voteStatus').textContent='Chưa vote – bấm để chọn.';
+  }
   clearCd('day'); $('dayTimer').textContent=''; countdown('vote',m.deadline,'⏱️ Còn');
 }
 let histItems=[];
@@ -1373,8 +1614,9 @@ function renderFinalHistory(hist){
   }).join('');
 }
 function drawVote(){
+  const dead=!myAlive;
   $('voteGrid').innerHTML=voteOptions.map(o=>`
-    <div class="tava${myVote===o.id?' sel':''}" onclick="castVote('${o.id}')">
+    <div class="tava${myVote===o.id?' sel':''}${dead?' dead-view':''}"${dead?'':` onclick="castVote('${o.id}')"`}>
       <div class="tava-sel-ring"></div>
       <div class="tava-check">✓</div>
       <div class="ptile-forest"></div>
@@ -1390,10 +1632,19 @@ function drawVote(){
       </div>
     </div>`).join('');
 }
-function castVote(id){ myVote=id; send({t:'vote',target:id}); drawVote(); $('voteStatus').textContent='✅ Đã vote: '+nameOf(id); }
+function castVote(id){
+  if(!myAlive){ showToast&&showToast('👻 Đã chết không thể bỏ phiếu'); return; }
+  myVote=id; send({t:'vote',target:id}); drawVote(); $('voteStatus').textContent='✅ Đã vote: '+nameOf(id);
+}
 
 function renderEnd(m){
   show('endBox',true); show('promptBox',false); show('sleepBox',false); show('voteBox',false);
+  /* Dừng mọi countdown còn chạy để statusbar không hiện "⏱ 2s" khi đã kết thúc */
+  clearInterval(promptTimerInt); clearCd('vote'); clearCd('day');
+  $('pTimer') && ($('pTimer').textContent='--');
+  $('voteTimer') && ($('voteTimer').textContent=''); $('dayTimer') && ($('dayTimer').textContent='');
+  /* Đảm bảo phase='ended' để statusbar render đúng (phòng khi state chưa kịp về) */
+  phase='ended'; renderStatusBar();
   const W={village:['🏆','PHE DÂN THẮNG!'],wolf:['🐺','PHE SÓI THẮNG!'],third:['🎭','PHE THỨ BA THẮNG!']};
   const w=W[m.winner]||['🏁','KẾT THÚC']; $('endIcon').textContent=w[0]; $('endTitle').textContent=w[1];
   const rev=m.reveal||[];
@@ -1469,7 +1720,7 @@ function renderRoleTabs(){
   el.innerHTML=tabs.map(([id,lbl])=>{
     const on=rcTeamFilter===id?' on':'';
     const chosen=chosenRoles[id]||0;
-    return `<button class="rc-tab${on}" onclick="setTeamFilter('${id}')">${lbl}<span class="rc-tab-cnt">${chosen}</span></button>`;
+    return `<button class="rc-tab${on}" onclick="setTeamFilter('${id}')" title="${chosen} ô đã chọn">${lbl}<span class="rc-tab-cnt">${chosen}</span></button>`;
   }).join('');
 }
 const noDiacritics=s=>String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/đ/g,'d').replace(/Đ/g,'D').toLowerCase();
@@ -1487,7 +1738,7 @@ function renderRoleConfig(){
     if(!roles.length) continue;
     const chosenSlots=roles.reduce((a,r)=>a+(roleCounts[r.id]||0),0);
     const chosenTypes=roles.reduce((a,r)=>a+((roleCounts[r.id]||0)>0?1:0),0);
-    html+=`<div class="rgroup">${label}<span class="rgroup-cnt">${chosenSlots} ô · ${chosenTypes}/${teamTotal} vai</span></div>`;
+    html+=`<div class="rgroup">${label}<span class="rgroup-cnt" title="Số ô người chơi · số loại vai đã bật">${chosenSlots} ô · ${chosenTypes} loại</span></div>`;
     for(const r of roles){
       const cnt=roleCounts[r.id]||0;
       const ac=cnt>0?`a-${r.team}`:'';

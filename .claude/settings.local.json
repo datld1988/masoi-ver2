@@ -26,7 +26,12 @@
       "PowerShell(netstat *)",
       "Bash(netstat -ano)",
       "Bash(curl *)",
-      "PowerShell(Get-NetTCPConnection *)"
+      "PowerShell(Get-NetTCPConnection *)",
+      "Bash(git -C D:/dat/ClaudeCode/masoi status)",
+      "Bash(git -C D:/dat/ClaudeCode/masoi log --oneline -15)",
+      "Bash(dir *)",
+      "Bash(git *)",
+      "Bash(pnpm test:engine)"
     ]
   }
 }

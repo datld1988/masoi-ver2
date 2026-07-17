@@ -35,6 +35,9 @@ export class Room {
     this.password = '';               // mật khẩu phòng (server giữ, không gửi client)
     this.history = [];                // lịch sử CHI TIẾT (có vai) — chỉ gửi khi kết thúc
     this._lastActivity = Date.now();  // dùng để sweep phòng không hoạt động
+    this._ownerGraceTimer = null;     // timer chuyển quyền chủ phòng (grace 60s)
+    this._ownerGraceForId = null;     // id chủ phòng đang trong grace (để hủy khi họ reconnect)
+    this.OWNER_GRACE_MS = 60_000;     // 60s: đủ cho F5 / rớt mạng ngắn
   }
 
   /* ── tiện ích ── */
@@ -69,13 +72,28 @@ export class Room {
   setConnected(id, val) {
     const i = this.idx(id); if (i < 0) return;
     this.players[i].connected = val;
-    // Chủ phòng rớt mạng → chuyển quyền cho người đang online (khỏi kẹt phòng)
+    // Chủ phòng rớt mạng → grace 60s trước khi chuyển quyền (chịu F5/rớt mạng ngắn)
     if (!val && id === this.ownerId) {
-      const next = this.players.find(p => p.connected && p.id !== id);
-      if (next) {
-        this.ownerId = next.id;
-        this.broadcast({ t: 'toast', message: `👑 ${next.name} trở thành chủ phòng mới.` });
-      }
+      if (this._ownerGraceTimer) this.sched.clear(this._ownerGraceTimer);
+      this._ownerGraceForId = id;
+      this._ownerGraceTimer = this.sched.set(this.OWNER_GRACE_MS, () => {
+        this._ownerGraceTimer = null; this._ownerGraceForId = null;
+        // Chỉ chuyển nếu chủ cũ VẪN chưa quay lại
+        const cur = this.players.find(p => p.id === this.ownerId);
+        if (cur && !cur.connected) {
+          const next = this.players.find(p => p.connected && p.id !== this.ownerId);
+          if (next) {
+            this.ownerId = next.id;
+            this.broadcast({ t: 'toast', message: `👑 ${next.name} trở thành chủ phòng mới (chủ cũ mất kết nối).` });
+            this.broadcastState();
+            if (this.phase === 'lobby') this.broadcastLobby();
+          }
+        }
+      });
+    } else if (val && this._ownerGraceTimer && id === this._ownerGraceForId) {
+      // Chủ cũ quay lại kịp — hủy grace timer
+      this.sched.clear(this._ownerGraceTimer);
+      this._ownerGraceTimer = null; this._ownerGraceForId = null;
     }
     this.broadcastState();
     if (this.phase === 'lobby') this.broadcastLobby();
@@ -508,6 +526,11 @@ export class Room {
   resume(id) {
     const i = this.idx(id); if (i < 0) return;
     this.players[i].connected = true;
+    // Hủy owner grace timer nếu chủ cũ vừa reconnect
+    if (this._ownerGraceTimer && id === this._ownerGraceForId) {
+      this.sched.clear(this._ownerGraceTimer);
+      this._ownerGraceTimer = null; this._ownerGraceForId = null;
+    }
     this.broadcastState();
     if (!this.state) { this.send(id, { t: 'lobby', players: this.publicPlayers(), ownerId: this.ownerId }); return; }
     const deal = this.E.dealInfo(this.state);
@@ -520,6 +543,9 @@ export class Room {
     } else if (this.phase === 'day' && this.voteOpen && this.state.players[i].alive) {
       const dl = this._voteDeadline ? Math.max(now() + 5000, this._voteDeadline) : now() + this.settings.voteSec * 1000;
       this.send(id, { t: 'voteOpen', deadline: dl, options: this.promptOptions() });
+    } else if (this.phase === 'ended' && this._lastGameOver) {
+      /* Ván đã kết thúc — re-send để client dựng lại endBox + reveal + lịch sử chi tiết */
+      this.send(id, { t: 'gameOver', ...this._lastGameOver });
     }
     for (const ch of CHATS)
       if (this.chatRecipients(ch).includes(id))
@@ -532,11 +558,15 @@ export class Room {
     this.voteOpen = false;
     this.clearTimer();
     const reveal = this.state.players.map((p) => { const r = this.E.roleOf(p.roleId); return { name: p.name, role: r.name, team: r.team, alive: p.alive }; });
-    this.broadcast({ t: 'gameOver', winner: win.winner, desc: win.desc, reveal, history: this.history });
+    /* Lưu snapshot để resume/reconnect sau ended vẫn nhận được reveal + history */
+    this._lastGameOver = { winner: win.winner, desc: win.desc, reveal, history: this.history };
+    /* Broadcast state trước để client update phase='ended' → tắt timer statusbar */
+    this.broadcastState();
+    this.broadcast({ t: 'gameOver', ...this._lastGameOver });
     if (this.onGameOver) this.onGameOver(win.winner, reveal, this.players);
   }
 
-  /* ── VÁN MỚI CÙNG NHÓM: giữ người chơi, xoá ván cũ, về phòng chờ ── */
+  /* ── VÁN MỚI CÙNG NHÓM: giữ người chơi (đang online), xoá ván cũ, về phòng chờ ── */
   newMatch() {
     if (this.phase !== 'ended') return;
     this.clearTimer();
@@ -545,11 +575,28 @@ export class Room {
     this.votes = {}; this.voteOpen = false;
     this.chatLog = { main: [], wolf: [], dead: [] };
     this.history = [];
+    this._lastGameOver = null;
+    // Loại người đã mất kết nối — họ không thể "sẵn sàng" nên sẽ chặn start
+    const removed = this.players.filter(p => p.connected === false);
+    if (removed.length) {
+      this.players = this.players.filter(p => p.connected !== false);
+      // Reassign owner nếu chủ cũ nằm trong nhóm bị loại
+      if (removed.some(p => p.id === this.ownerId)) {
+        this.ownerId = (this.players[0] && this.players[0].id) || null;
+        if (this._ownerGraceTimer) { this.sched.clear(this._ownerGraceTimer); this._ownerGraceTimer = null; this._ownerGraceForId = null; }
+        const newOwner = this.ownerId && this.players.find(p => p.id === this.ownerId);
+        if (newOwner) this.broadcast({ t: 'toast', message: `👑 ${newOwner.name} là chủ phòng mới.` });
+      }
+    }
     this.players.forEach(p => { p.ready = false; });
     this.phase = 'lobby';
     this.broadcast({ t: 'newMatch' });
     this.broadcastLobby();
     this.broadcastState();
+    if (removed.length) {
+      const names = removed.map(p => p.name).join(', ');
+      this.broadcast({ t: 'toast', message: `🚪 Đã loại người mất kết nối: ${names}` });
+    }
   }
 
   /* ── BỀN BỈ: snapshot / khôi phục (restart không mất ván) ── */
@@ -560,6 +607,7 @@ export class Room {
       players: this.players.map(p => ({ id: p.id, name: p.name, connected: false, ready: !!p.ready })),
       state: this.state, nd: this.nd, votes: this.votes, voteOpen: this.voteOpen, chatLog: this.chatLog, history: this.history,
       cur: c && c.pending ? { pending: [...c.pending], stepByActor: c.stepByActor || {}, wolfActors: [...(c.wolfActors || [])], wolfVotes: c.wolfVotes || {}, wolfResolved: !!c.wolfResolved } : null,
+      promptDeadline: this._promptDeadline, voteDeadline: this._voteDeadline,
     };
   }
   static restore(snap, send, scheduler) {
@@ -570,12 +618,23 @@ export class Room {
     r.history = snap.history || [];
     r.votes = snap.votes || {}; r.voteOpen = !!snap.voteOpen; r.chatLog = snap.chatLog || { main: [], wolf: [], dead: [] };
     if (snap.cur) r.cur = { pending: new Set(snap.cur.pending), stepByActor: snap.cur.stepByActor || {}, wolfActors: new Set(snap.cur.wolfActors), wolfVotes: snap.cur.wolfVotes || {}, wolfResolved: !!snap.cur.wolfResolved };
+    r._promptDeadline = snap.promptDeadline || null;
+    r._voteDeadline = snap.voteDeadline || null;
     r.rearm();
     return r;
   }
-  rearm() {   // dựng lại timer cho giai đoạn hiện tại sau khi khôi phục
+  rearm() {   // dựng lại timer cho giai đoạn hiện tại sau khi khôi phục — giữ deadline gốc nếu còn hạn.
     this.clearTimer();
-    if (this.phase === 'night' && this.cur && this.cur.pending) this.timer = this.sched.set(this.settings.actionSec * 1000, () => this.waveTimeout());
-    else if (this.phase === 'day') { if (this.voteOpen) this.timer = this.sched.set(this.settings.voteSec * 1000, () => this.closeVote()); else this.startDay(); }
+    const remain = (dl, fullSec) => {
+      if (!dl) return fullSec * 1000;
+      const r = dl - now();
+      return Math.max(1000, r); // tối thiểu 1s để không kích ngay tức khắc
+    };
+    if (this.phase === 'night' && this.cur && this.cur.pending)
+      this.timer = this.sched.set(remain(this._promptDeadline, this.settings.actionSec), () => this.waveTimeout());
+    else if (this.phase === 'day') {
+      if (this.voteOpen) this.timer = this.sched.set(remain(this._voteDeadline, this.settings.voteSec), () => this.closeVote());
+      else this.startDay();
+    }
   }
 }
