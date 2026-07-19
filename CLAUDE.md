@@ -222,9 +222,8 @@ Bối cảnh: đối chiếu `improve/Danh_gia_UX_UI_Game_Ma_Soi_Mobile_Web_App.
 
 ### Chưa làm — phase tiếp
 
-- **B2**: Hero mở rộng statusBar (turn indicator "Đến lượt X", progress bar timer thay vì số).
-- **B3**: Role card compact/expand (mặc định chip 1 dòng, tap để mở full 3D flip).
-- **Phase C**: animation chuyển ngày/đêm, haptics (`navigator.vibrate` + Capacitor `Haptics`) khi tới lượt/vote/chết, push notification khi background, gesture vuốt chuyển tab.
+- **B2/B3/haptics**: đã làm trong đợt 2026-07-19 (xem section dưới).
+- **Phase C còn lại**: animation chuyển ngày/đêm mượt hơn, push notification (Web Notif + service worker), gesture vuốt chuyển tab bottom nav.
 - **Phase D**: PWA `manifest.json` + adaptive icon, ARIA labels đầy đủ, contrast audit (tím trên nền tối ≥4.5:1), WS reconnect khi app resume từ background, Capacitor wire-up trong `masoi-android/`.
 
 ### Gotchas mới
@@ -236,12 +235,69 @@ Bối cảnh: đối chiếu `improve/Danh_gia_UX_UI_Game_Ma_Soi_Mobile_Web_App.
 - **Tab count có thể ≠ 3**: Ended chỉ 2 tab. Nếu thêm phase mới, chỉnh `updateBottomNav` **và** auto-switch nếu user đang ở tab bị bỏ (đã có pattern: `if(body.classList.contains('bn-players')){ ... bnTab='main' }`).
 - **CSS bottom nav filter**: rules đều gate trong `@media (max-width:1023px)` — desktop 2-cột không bị ảnh hưởng dù JS vẫn add `bn-active` class.
 
+## Bot AI + Quick Match + Vote 2/3 + Mobile UX B2/B3/C (2026-07-19)
+
+Commit: `0005dfe` server · `9a7a790` UI · `751fde0` docs. Test: 83/83 auto-MC + bot smoke PASS.
+
+### Bot AI (`bot.js` + `bot-personas.js` + `bot-chat.js`)
+
+- **Kiến trúc**: `Room` wrap `send(pid,msg)` — id có prefix `bot_` → route sang `BotPlayer.send()` local, không đi qua transport. `addBot(persona)` / `hasBot()` cho quick-match auto-fill. Ưu tiên người thật làm owner; bot **không thể** làm chủ phòng.
+- **BotPlayer**: dùng scheduler của Room (test tick được). Delay giả người: 2-8s action, 4-15s vote, 3-25s chat. `botNightAction()` sinh action HỢP LỆ theo `stepType`; bot Sói ưu tiên vote Dân, bot Dân vote random. Chat template có `${target}`, reply keyword khi bị nhắc tên.
+- **Persona pool**: 60 tên VN, id `bot_<time36>_<seq>`. `makeBotPersonas(n, existingNames)` tránh trùng tên người thật.
+- **Cleanup**: `_destroyBots()` gọi trong `gameOver()` (chỉ dọn timers, entry giữ trong `players[]` để state index khớp resume/reveal) + `newMatch()` (dọn hẳn — bot không sang ván mới). Ván mới cần quickMatch mới tạo bot mới.
+
+### Quick Match auto-fill (`index.js`)
+
+- Chỉ gộp phòng đã đánh dấu `_quickMatch` (không gộp phòng do người tự tạo). Cấu hình: `QUICK_MATCH_WAIT_MS=10s`, `QUICK_MATCH_TARGET=5`.
+- Người vào → broadcast `quickMatchWaiting {deadline,target}` cho tất cả người thật (kể cả người mới vào giữa chừng). Timer hết → fill bot lên target, `suggestRoleCounts(n)`, auto-start (bỏ qua ready check bằng cách set `ready=true` cho tất cả).
+- **ELO**: `onGameOver` bỏ qua ELO nếu `roomPlayers.some(p=>p.isBot)` — chống farm; toast "🤖 Ván luyện tập có bot — không tính ELO".
+- Client `#qmBanner` countdown 10s + progress + sub message ("👥 N người thật · thêm bot nếu chưa đủ khi hết giờ" / "✅ Đủ N — chuẩn bị bắt đầu" / "🤖 Đang thêm bot & bắt đầu ván"). Ẩn config/ready khi trong quickMatch.
+
+### Vote treo cổ ≥ 2/3 người sống
+
+- `closeVote()` tính `threshold = ceil(aliveCnt*2/3)`. `topCount < threshold` → không ai bị treo, `history` ghi `{insufficient:true, needed, topName, topCount}`. Line hiển thị "⚖️ Không đủ 2/3 phiếu để treo cổ (cần ≥N, X chỉ có Y). Không ai bị treo."
+- Client `renderVote()` hiển thị dòng rule "⚖️ Cần ≥ N phiếu (2/3 của M sống)".
+- 2 test case đặc thù trong `scenarios.mjs` (đủ + không đủ).
+
+### Mobile UX Phase B2/B3/C
+
+**B2 — Statusbar hero (3 hàng dọc)**: chip row (phase/timer/alive/room/dead) + `sb-turn` (turn indicator: 🎯 my-turn pulse vàng · 😴 night-wait · 💬 day-talk · 🗳 day-vote · 👻 spec) + `sb-progress` (green → yellow warn≤50% → red crit≤25% pulse). `syncHeroBar()` 500ms, đọc `currentCountdown()` cho cả night (curPrompt) lẫn day (vote/discussion). Server gửi kèm `total` để late-connect/resume dựng bar chuẩn.
+
+**B3 — Role card compact/modal**: mặc định `.g-role.compact` → chip 1 dòng (icon + tên + mates + team + ›). Tap chip mở `#roleModal` full-screen (art + icon + team + desc + mates). Nút `⬍` toggle, lưu `localStorage.masoi_role_compact`. Esc đóng.
+
+**Phase C (haptics)**: `vib(pattern)` helper wrap `navigator.vibrate` + `localStorage.masoi_haptic`. Rung: tap target (12-18ms), submit (35/25/35), skip (25), vote (30/25/30), open modal (20), setBnTab (15), chat send (12), death (250/80/250/80/500), toast lỗi (25/40/25).
+
+**Timeline dayBox**: thay text `.announce` phẳng bằng `renderTimeline()` — card đêm/ngày (mới nhất trên) trong `tl-scroll` (max-h 58vh), badge "Mới nhất". `pushHist` chỉ push vào `histItems`; `histBox` final chỉ hiện lúc ended.
+
+**Chat badges per-kênh**: `bnChatUnread` từ số → `{main,wolf,dead}`. Bottom nav tab Chat hiện `bn-chan-badge` cho từng kênh có tin mới (không hiện kênh đang xem), kèm sub-label liệt kê tên kênh. `chatTabs` hiện `ch-badge` nhỏ. `setChatCh` chỉ reset đúng kênh xem. Bottom nav ended thêm tab `bn-hist` tách riêng khỏi `bn-chat`.
+
+**Hero action bar mobile**: `#heroAction` sticky bottom (76px trên bottom nav khi active): [✔️ Xác nhận] + [⏭️ Bỏ lượt], mirror `pConfirm` state qua `syncHeroAction()`. Ẩn desktop ≥1024px.
+
+**Bot notice + isBot reveal**: `rv-item` hiển thị 🤖 badge cho bot. Banner `bot-notice` "🤖 Ván này có bot lấp phòng — không tính ELO" trên endReveal.
+
+**Bug 15/16 fixes**: `renderRoleTabs` cộng villager auto-fill vào Làng + Tất cả (hiển thị "Tất cả X/Y" khớp hero card). Statusbar phase indicator đã rõ ràng nhờ `sb-turn` + `sb-progress`.
+
+### Gotchas mới (2026-07-19)
+
+- **Bot id prefix**: `bot_` bắt buộc — `isBotId()` là source of truth để `Room.send()` route local. Đừng đặt id người thật bắt đầu bằng `bot_`.
+- **Bot vẫn nằm trong `players[]` sau gameOver**: chỉ destroy timers. Cần thiết để `state.players[i].name` + `reveal[i]` khớp index. `newMatch` mới thật sự loại bỏ.
+- **`_quickMatch` là flag "sticky"**: một khi phòng được đánh dấu, các lần gộp sau vẫn ưu tiên nó. Người tự tạo phòng KHÔNG có flag này → không bị nhét bot.
+- **Vote 2/3 dựa trên `aliveCnt` TẠI THỜI ĐIỂM closeVote**: nếu ai chết trong day (rare), threshold có thể lệch. Auto-MC test đủ 6/9 case biên.
+- **`sb-turn` + `sb-progress` DOM chỉ có khi phase=night|day**: đừng `getElementById` blindly ngoài `syncHeroBar` — nó sẽ null ở lobby/ended.
+- **`heroAction` mirror `pConfirm`**: không có state riêng. Sửa `renderPrompt`/`submitAction`/`submitSkip` phải gọi `syncHeroAction()` nếu không nút mobile stuck disabled.
+- **`bnChatUnread` là object per-kênh**: cẩn thận `bnChatUnread=0` (số) sẽ phá — luôn dùng object shape hoặc reset qua `{main:0,wolf:0,dead:0}`.
+- **Villager auto-fill** cộng vào tab tabs "Tất cả" và "Làng" — `chosenRoles.all` không còn chỉ là tổng roleCounts nữa; nếu thêm code đếm mới, đọc kỹ `renderRoleTabs`.
+
 ## Phase 3 — Việc tiếp theo (bắt buộc để lên store)
 
 1. **Kiểm duyệt chat**: lọc từ ngữ tục/thô (badword list hoặc AI moderation), block user
 2. **Age-gate**: xác nhận tuổi ≥13/≥18 tùy thị trường trước khi chat
 3. **ToS + Privacy Policy** chính thức (App Store / Play Store bắt buộc)
 4. Cơ chế xóa dữ liệu theo yêu cầu (GDPR / Nghị định 13/2023 VN)
+
+### Polish còn nợ (không chặn Phase 3, làm sau)
+- **Phase C**: animation chuyển ngày/đêm mượt, gesture vuốt tab, push notification background.
+- **Phase D**: PWA `manifest.json` + adaptive icon, ARIA labels, contrast audit, WS reconnect on resume, Capacitor wire-up `masoi-android/`.
 
 ---
 
