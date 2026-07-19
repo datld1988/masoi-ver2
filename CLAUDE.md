@@ -363,6 +363,26 @@ Commit: `756357d`.
 - **`lastVoteTally` là object `{idx: count}`** (server gửi trong `voteTally.tally`) — key là số (index). Cần chuyển qua `pid` khi bandwagon: `room.pid(+idxStr)`.
 - **Bot Sói KHÔNG được set mình là wolf trong beliefs** — server đã biết qua state; nếu set thì logic `knownWolves()` sẽ include chính mình vào target list poison/kill.
 
+### Persona per-bot — de-sync tempo (commit `d1f60a1`)
+
+Vấn đề trước: bot đồng phục cadence (4-15s vote / 55% morning chat / 60% day chat) → user dễ nhận ra "toàn bot" vì tempo giống hệt.
+
+Fix: mỗi `BotPlayer` bốc thăm persona khi khởi tạo:
+- **chatty** 0.05-0.95: 20% "lurker" (~0.05-0.15, hầu như không nói), 40% trung bình, 40% nói nhiều.
+- **patience** 0.4-2.2: multiplier delay. Thấp = phản xạ nhanh; cao = chờ sát deadline.
+- **style** (chưa impl chi tiết, để dành cho phase sau).
+
+Áp `_pdRange(lo,hi) = randInt(lo*patience, hi*patience)` cho mọi delay: night 1500-9000, wolf chat, day chat spread base+jitter theo k-th, morning RIP 800-14000, day reaction 2000-9000, vote 2000-22000 (cap deadline-500), reply 1500-8000. Chat gate: `Math.random() < persona.chatty * factor` — lurker skip gần hết.
+
+`bot-chat.js` NEUTRAL pool bổ sung câu ngắn/lurker vibe: `...`, `ừm`, `ờ`, `ok`, `🙄`, `😐`, `ngồi hóng`, `khum bik`; morning template thêm `{name} 😔`, `😭 {name}`, `2 mạng luôn à 😱`.
+
+**Kết quả test 8x**: chat count 0/6/7/8/8/9/12/24 (spread rộng — trước 10-21 đồng đều). Có ván 0 tin cả 5 bot đều lurker.
+
+**Gotchas persona**:
+- Test có `actionSec:1` → bot patience 2.2 * 9000 = 20s → **fires sau deadline**, bị `waveTimeout`. Không ảnh hưởng vì server tự đẩy sang ngày. Production (`actionSec:60`) không bị.
+- `_pd(ms)` cap min 400ms — tránh patience 0.4 * 400 = 160ms fires cùng lúc gây race trên chat.
+- Persona không được lưu qua `serialize`/`restore` — nhưng ván có bot không snapshot nên không sao (`saveRooms` skip `hasBot()`).
+
 ---
 
 ## Quy ước & lưu ý (gotchas)
