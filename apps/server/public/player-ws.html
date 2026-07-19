@@ -37,10 +37,11 @@ header .room{margin-left:auto;font-size:.8rem;color:var(--muted);font-weight:400
 /* Polish mobile: các card nhỏ gọn hơn */
 @media (max-width:640px){
   /* Statusbar: chip nhỏ hơn để không wrap 3 dòng; ẩn 'Phòng' text, chỉ giữ mã */
-  .statusbar{gap:4px;padding:6px 10px;font-size:.76rem;}
-  .sb-chip{padding:2px 7px;gap:3px;font-size:.76rem;}
+  .statusbar{gap:6px;padding:7px 11px;font-size:.76rem;}
+  .sb-chips{gap:12px;}
+  .sb-chip{padding:4px 11px;gap:4px;font-size:.76rem;}
   .sb-room .rlbl{display:none;}
-  .sb-room{padding:2px 7px;}
+  .sb-room{padding:4px 11px;}
   /* Reveal card: giảm min để 2 cột trên phone */
   .rv-list{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));}
   .rv-item{padding:6px 8px;gap:8px;}
@@ -75,14 +76,33 @@ input:-webkit-autofill,input:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 100
 .btn-primary{background:var(--accent);color:#fff;} .btn-ghost{background:var(--surface2);color:var(--text);border:1px solid var(--border);} .btn-danger{background:#dc2626;color:#fff;} .btn:disabled{opacity:.4;}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
 .err{color:var(--red);font-size:.85rem;margin-top:6px;}
-/* Thanh trạng thái */
-.statusbar{position:sticky;top:env(safe-area-inset-top,0);z-index:12;display:flex;align-items:center;flex-wrap:wrap;gap:6px;background:rgba(26,18,48,.85);backdrop-filter:blur(9px);border:1px solid var(--border);border-radius:12px;padding:8px 12px;font-size:.82rem;}
-.sb-chip{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:9px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.06);white-space:nowrap;}
+/* Thanh trạng thái (hero bar: chip row + turn indicator + progress) */
+.statusbar{position:sticky;top:env(safe-area-inset-top,0);z-index:12;display:flex;flex-direction:column;align-items:stretch;gap:8px;background:rgba(26,18,48,.85);backdrop-filter:blur(9px);border:1px solid var(--border);border-radius:12px;padding:9px 14px;font-size:.82rem;}
+.sb-chips{display:flex;flex-wrap:wrap;align-items:center;gap:14px;}
+.sb-chip{display:inline-flex;align-items:center;gap:6px;padding:5px 13px;border-radius:10px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.06);white-space:nowrap;}
 .sb-phase{font-weight:700;color:var(--accent);background:rgba(168,132,255,.14);border-color:rgba(168,132,255,.3);}
 .sb-alive{color:#e8e2ff;} .sb-timer{color:var(--gold);font-variant-numeric:tabular-nums;font-weight:600;}
 .sb-timer.low{color:#ff8888;animation:sbPulse 1s infinite;} @keyframes sbPulse{50%{opacity:.5;}}
 .sb-room{color:#e2d9ff;font-size:.75rem;margin-left:auto;cursor:pointer;font-family:inherit;} .sb-room:hover{background:rgba(168,85,247,.18);} .sb-room b{color:var(--gold);font-weight:700;letter-spacing:.5px;} .sb-dead{color:var(--red);font-weight:700;background:rgba(255,120,120,.14);border-color:rgba(255,120,120,.35);}
 .sb-time{color:var(--gold);}
+/* Turn indicator row */
+.sb-turn{font-size:.78rem;color:#d5d0f5;padding:3px 6px;line-height:1.3;text-align:center;font-weight:600;letter-spacing:.2px;border-radius:8px;background:rgba(255,255,255,.03);}
+.sb-turn .tico{margin-right:5px;}
+.sb-turn.my-turn{color:#fef3c7;background:linear-gradient(90deg,rgba(251,191,36,.22),rgba(251,191,36,.08));box-shadow:inset 0 0 0 1px rgba(251,191,36,.4);animation:sbTurnPulse 1.8s ease-in-out infinite;}
+@keyframes sbTurnPulse{0%,100%{box-shadow:inset 0 0 0 1px rgba(251,191,36,.4);} 50%{box-shadow:inset 0 0 0 1px rgba(251,191,36,.85),0 0 12px rgba(251,191,36,.3);}}
+.sb-turn.day-vote{color:#fca5a5;background:rgba(239,68,68,.12);box-shadow:inset 0 0 0 1px rgba(239,68,68,.28);}
+.sb-turn.day-talk{color:#fde68a;background:rgba(251,191,36,.09);}
+.sb-turn.night-wait{color:#a5b4fc;background:rgba(99,102,241,.09);}
+/* Progress bar row */
+.sb-progress{height:6px;border-radius:4px;background:rgba(255,255,255,.06);overflow:hidden;position:relative;}
+.sb-progress-fill{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,#4ade80,#22c55e);transition:width .35s linear,background .3s;width:0%;}
+.sb-progress-fill.warn{background:linear-gradient(90deg,#fbbf24,#f97316);}
+.sb-progress-fill.crit{background:linear-gradient(90deg,#ef4444,#dc2626);animation:sbCritPulse 1s infinite;}
+@keyframes sbCritPulse{50%{opacity:.65;}}
+@media (max-width:640px){
+  .sb-turn{font-size:.72rem;padding:3px 4px;}
+  .sb-progress{height:5px;}
+}
 /* Thẻ vai 3D */
 .role-card{height:280px;perspective:900px;user-select:none;position:relative;}
 .peek-fab{position:absolute;top:8px;right:8px;z-index:15;width:32px;height:32px;padding:0;border:1px solid rgba(255,255,255,.18);border-radius:50%;background:rgba(20,12,45,.7);color:#f5d478;font-size:1rem;cursor:pointer;backdrop-filter:blur(6px);transition:transform .12s,background .12s;}
@@ -104,6 +124,38 @@ input:-webkit-autofill,input:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 100
 .role-plate .desc{margin-top:4px;font-size:.72rem;color:#b3aee0;line-height:1.25;max-height:2.6em;overflow:hidden;text-overflow:ellipsis;}
 .role-shine{position:absolute;inset:0;border-radius:14px;pointer-events:none;opacity:0;transition:opacity .2s;background:radial-gradient(circle at var(--gx,50%) var(--gy,40%),rgba(255,255,255,.22),transparent 44%);mix-blend-mode:screen;z-index:5;}
 .role-card.tilting .role-shine{opacity:1;}
+/* Role card compact mode — chip 1 dòng, tap mở modal 3D */
+.g-role .title{display:flex;align-items:center;gap:8px;}
+.role-toggle{margin-left:auto;background:none;border:1px solid var(--border);color:var(--muted);width:28px;height:28px;border-radius:8px;font-size:.9rem;cursor:pointer;line-height:1;padding:0;display:inline-flex;align-items:center;justify-content:center;transition:background .12s,color .12s;}
+.role-toggle:hover{background:rgba(168,85,247,.16);color:var(--text);}
+.role-toggle:active{transform:scale(.92);}
+.g-role.compact .role-card{display:none;}
+.g-role:not(.compact) .role-compact-chip{display:none;}
+.role-compact-chip{display:flex;align-items:center;gap:10px;padding:8px 12px;border:1px solid #9d7c3e;border-radius:12px;background:linear-gradient(135deg,rgba(21,16,42,.9),rgba(35,25,68,.9));cursor:pointer;transition:transform .12s,box-shadow .18s;box-shadow:inset 0 0 0 1px rgba(201,165,92,.35),0 2px 10px rgba(0,0,0,.35);}
+.role-compact-chip:hover{transform:translateY(-1px);box-shadow:inset 0 0 0 1px rgba(201,165,92,.6),0 4px 14px rgba(201,165,92,.18);}
+.role-compact-chip:active{transform:scale(.98);}
+.role-compact-chip .rc-ico{font-size:1.7rem;flex-shrink:0;width:36px;height:36px;display:flex;align-items:center;justify-content:center;background:rgba(157,124,62,.15);border-radius:9px;}
+.role-compact-chip .rc-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;}
+.role-compact-chip .rc-nm{font-family:Georgia,serif;font-weight:800;color:#f5d478;font-size:1.02rem;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.role-compact-chip .rc-sub{font-size:.68rem;color:#b3aee0;line-height:1.15;}
+.role-compact-chip .rc-team{flex-shrink:0;font-size:.7rem;color:#e2d9ff;background:rgba(157,124,62,.28);padding:3px 9px;border-radius:9px;letter-spacing:.2px;font-weight:600;}
+.role-compact-chip .rc-more{margin-left:6px;color:var(--muted);font-size:.9rem;flex-shrink:0;}
+.g-role.compact .role-compact-chip.hidden-empty{display:none;}
+/* Full-screen role modal (khi tap chip) */
+#roleModal{position:fixed;inset:0;z-index:120;background:rgba(4,2,15,.82);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);display:none;align-items:center;justify-content:center;padding:20px;padding-top:calc(20px + env(safe-area-inset-top));padding-bottom:calc(20px + env(safe-area-inset-bottom));}
+#roleModal.show{display:flex;animation:rmFade .2s ease-out;}
+@keyframes rmFade{from{opacity:0;} to{opacity:1;}}
+#roleModal .rm-body{position:relative;width:min(360px,92vw);height:min(500px,80vh);}
+#roleModal .rm-close{position:absolute;top:-14px;right:-14px;z-index:5;width:38px;height:38px;border-radius:50%;background:rgba(0,0,0,.7);border:1px solid var(--border);color:#fff;font-size:1.3rem;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;padding:0;}
+#roleModal .rm-close:hover{background:rgba(239,68,68,.5);}
+#roleModal .rm-card{width:100%;height:100%;border-radius:16px;background:#15102a;border:2px solid #9d7c3e;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.6),inset 0 0 0 1px rgba(201,165,92,.5),0 0 40px rgba(201,165,92,.25);position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;}
+#roleModal .rm-art{position:absolute;inset:0;} #roleModal .rm-art svg{width:100%;height:100%;}
+#roleModal .rm-icon{font-size:4.6rem;position:relative;z-index:2;}
+#roleModal .rm-plate{position:absolute;left:0;right:0;bottom:0;background:linear-gradient(180deg,transparent,rgba(10,7,24,.95) 45%);padding:22px 18px 20px;text-align:center;z-index:3;}
+#roleModal .rm-nm{font-family:Georgia,serif;font-weight:800;font-size:1.8rem;color:#f5d478;letter-spacing:.5px;text-shadow:0 2px 8px rgba(0,0,0,.7);}
+#roleModal .rm-team{display:inline-block;margin-top:6px;font-size:.85rem;color:#e2d9ff;background:rgba(157,124,62,.28);padding:3px 12px;border-radius:12px;}
+#roleModal .rm-desc{margin-top:10px;font-size:.82rem;color:#c8c2f5;line-height:1.45;max-width:280px;margin-left:auto;margin-right:auto;}
+#roleModal .rm-mates{margin-top:8px;font-size:.75rem;color:#a5b4fc;}
 /* ── Roster — tile grid kiểu Wolvesville ── */
 .roster{display:grid;grid-template-columns:repeat(auto-fill,minmax(108px,1fr));gap:7px;}
 /* Tile hình chữ nhật dọc (3:4), nền trời → rừng */
@@ -262,8 +314,31 @@ input:-webkit-autofill,input:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 100
 .rv-name{font-weight:600;color:#f5f0ff;font-size:.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .rv-role{font-size:.72rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .rv-dead{color:#fca5a5;font-weight:600;}
+.rv-bot{font-size:.75rem;color:#c4b5fd;background:rgba(168,132,255,.15);padding:1px 6px;border-radius:8px;margin-left:4px;letter-spacing:.3px;}
 .rv-badge{font-size:1.1rem;flex-shrink:0;}
-.announce{white-space:pre-line;line-height:1.6;} .result-box{background:#1a0a2e;border:1px solid #6d28d9;border-radius:12px;padding:12px 14px;line-height:1.5;}
+.bot-notice{background:rgba(168,132,255,.12);border:1px solid rgba(168,132,255,.35);color:#c4b5fd;border-radius:10px;padding:8px 12px;margin-bottom:10px;font-size:.85rem;text-align:center;}
+/* Quick Match banner */
+.qm-banner{margin-top:12px;padding:14px 16px;border-radius:14px;background:linear-gradient(135deg,rgba(124,58,237,.22),rgba(14,165,164,.18));border:1px solid rgba(168,132,255,.4);text-align:center;}
+.qm-title{font-weight:700;color:#e0d5ff;font-size:.95rem;letter-spacing:.3px;}
+.qm-count{font-size:2.4rem;font-weight:800;color:#fbbf24;margin:6px 0 4px;line-height:1;font-variant-numeric:tabular-nums;}
+.qm-count .qm-suf{font-size:1.2rem;margin-left:2px;color:#e2c99a;}
+.qm-sub{font-size:.8rem;color:#c8bde8;margin-bottom:10px;}
+.qm-progress{height:6px;border-radius:4px;background:rgba(255,255,255,.08);overflow:hidden;position:relative;}
+.qm-progress-fill{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,#7c3aed,#0ea5a4);width:0%;transition:width .35s linear;}
+@keyframes qmCountPulse{0%,100%{transform:scale(1);} 50%{transform:scale(1.06);color:#ff9d5c;}}
+.qm-count.low{animation:qmCountPulse .9s infinite;color:#ff9d5c;}
+.announce{line-height:1.6;} .announce.plain{white-space:pre-line;}
+.result-box{background:#1a0a2e;border:1px solid #6d28d9;border-radius:12px;padding:12px 14px;line-height:1.5;}
+/* Timeline card (dayBox → cumulative diễn biến) */
+.tl-scroll{max-height:min(58vh,540px);overflow-y:auto;display:flex;flex-direction:column;gap:8px;}
+.tl-card{padding:9px 12px;border-radius:10px;border:1px solid;}
+.tl-card.night{background:rgba(56,45,110,.35);border-color:#3b3172;}
+.tl-card.day{background:rgba(255,180,60,.10);border-color:#8a6a1e;}
+.tl-hd{display:flex;align-items:center;gap:8px;margin-bottom:3px;}
+.tl-hd b{font-size:.92rem;}
+.tl-latest{font-size:.62rem;color:#facc15;background:rgba(250,204,21,.14);border:1px solid rgba(250,204,21,.4);border-radius:9px;padding:1px 8px;letter-spacing:.3px;font-weight:800;}
+.tl-lines{color:var(--muted);white-space:pre-line;font-size:.86rem;}
+.tl-empty{color:var(--muted);font-size:.85rem;text-align:center;padding:14px 4px;}
 /* Chat */
 .cmsg{display:flex;gap:6px;margin:5px 0;align-items:flex-end;} .cmsg.mine{flex-direction:row-reverse;}
 .cava{width:26px;height:26px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:.66rem;font-weight:700;color:#fff;}
@@ -274,7 +349,7 @@ input:-webkit-autofill,input:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 100
 .rc-hero-title{font-weight:800;font-size:.98rem;letter-spacing:.3px;}
 .rc-hero-suggest{margin-left:auto;padding:6px 12px;background:rgba(0,0,0,.25);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:.8rem;font-weight:700;cursor:pointer;white-space:nowrap;transition:filter .12s;}
 .rc-hero-suggest:hover{filter:brightness(1.25);}
-.rc-hero-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;}
+.rc-hero-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:12px;}
 .rc-hero-stat{text-align:center;padding:9px 4px;background:rgba(0,0,0,.28);border-radius:10px;border:1px solid rgba(255,255,255,.05);}
 .rc-hero-stat-num{font-size:1.5rem;font-weight:800;line-height:1;font-variant-numeric:tabular-nums;}
 .rc-hero-stat-lbl{font-size:.72rem;color:var(--muted);margin-top:4px;font-weight:600;}
@@ -303,7 +378,7 @@ input:-webkit-autofill,input:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 100
 #rcSearch:focus{border-color:var(--accent);}
 #rcSearchClear{position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--muted);cursor:pointer;font-size:1rem;padding:4px;}
 /* Tab filter theo phe */
-.rc-tabs{display:flex;flex-wrap:wrap;justify-content:center;gap:5px;margin-bottom:10px;}
+.rc-tabs{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin-bottom:10px;}
 .rc-tab{flex:0 0 auto;display:inline-flex;align-items:center;gap:5px;padding:7px 11px;background:var(--surface2);border:1px solid var(--border);border-radius:20px;color:var(--muted);font-size:.82rem;font-weight:600;cursor:pointer;white-space:nowrap;transition:border-color .1s,background .1s,color .1s;}
 .rc-tab:hover{color:var(--text);border-color:var(--accent);}
 .rc-tab.on{background:var(--accent);border-color:var(--accent);color:#fff;}
@@ -484,10 +559,20 @@ input:-webkit-autofill,input:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 100
   width:32px;height:3px;border-radius:2px;background:var(--primary);}
 .bn-tab .bn-ico{font-size:1.4rem;line-height:1;}
 .bn-tab .bn-lbl{font-size:.68rem;font-weight:700;letter-spacing:.2px;white-space:nowrap;}
-/* Badge số tin chưa đọc trên tab Chat */
-.bn-tab .bn-dot{position:absolute;top:4px;right:calc(50% - 20px);
-  min-width:8px;height:8px;border-radius:50%;background:var(--danger);
-  border:1.5px solid var(--bg);}
+/* Badges tin chưa đọc theo kênh trên tab Chat (bottom nav) */
+.bn-tab .bn-chan-badges{position:absolute;top:2px;right:4px;display:flex;gap:2px;pointer-events:none;}
+.bn-tab .bn-chan-badge{display:inline-flex;align-items:center;justify-content:center;min-width:17px;height:17px;padding:0 4px;
+  border-radius:9px;font-size:.62rem;font-weight:800;color:#fff;letter-spacing:.2px;
+  border:1.5px solid var(--bg);box-shadow:0 1px 3px rgba(0,0,0,.5);font-variant-numeric:tabular-nums;}
+.bn-chan-badge.main{background:#22c55e;}
+.bn-chan-badge.wolf{background:#dc2626;}
+.bn-chan-badge.dead{background:#6b7280;}
+.bn-tab .bn-lbl-sub{display:block;font-size:.6rem;font-weight:700;color:var(--gold);margin-top:2px;line-height:1;letter-spacing:.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}
+/* Badges trên chat tabs bên trong chatBox */
+.ch-badge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;margin-left:6px;border-radius:9px;font-size:.68rem;font-weight:800;color:#fff;font-variant-numeric:tabular-nums;vertical-align:middle;}
+.ch-badge.main{background:#22c55e;}
+.ch-badge.wolf{background:#dc2626;}
+.ch-badge.dead{background:#6b7280;}
 /* Chừa chỗ dưới cho bottom nav */
 @media (max-width:1023px){
   body.bn-active main{padding-bottom:calc(78px + env(safe-area-inset-bottom));}
@@ -508,15 +593,39 @@ input:-webkit-autofill,input:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 100
   body.bn-active.bn-main #scrGame > #endBox{display:block;}
   /* Khi là khán giả: ẩn role card trên main tab (đã chết, không cần xem vai lại) — chỉ hiện spec-hud */
   body.bn-active.bn-spec.bn-main #scrGame > .g-role{display:none;}
-  /* Tab Chat: chatBox (+ histBox khi ended) */
+  /* Tab Chat: chỉ chatBox (không kèm history) */
   body.bn-active.bn-chat #scrGame > #chatBox{display:block;}
-  body.bn-active.bn-chat.bn-ended #scrGame > #histBox{display:block;}
+  /* Tab Lịch sử (chỉ khi ended): chỉ histBox */
+  body.bn-active.bn-hist.bn-ended #scrGame > #histBox{display:block;}
   /* Tab Players: roster */
   body.bn-active.bn-players #scrGame > .g-roster{display:block;}
 }
+/* Hero Action Bar — sticky nút Xác nhận/Bỏ lượt khi tới lượt (mobile) */
+#heroAction{position:fixed;bottom:0;left:0;right:0;z-index:19;display:none;gap:8px;
+  padding:10px 12px;
+  padding-bottom:calc(10px + env(safe-area-inset-bottom));
+  padding-left:calc(12px + env(safe-area-inset-left));
+  padding-right:calc(12px + env(safe-area-inset-right));
+  background:linear-gradient(180deg,rgba(18,10,42,0),rgba(18,10,42,.96) 35%);
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  border-top:1px solid rgba(168,85,247,.4);
+  animation:heroSlideUp .28s cubic-bezier(.2,1.3,.4,1);}
+@keyframes heroSlideUp{from{transform:translateY(100%);opacity:0;} to{transform:translateY(0);opacity:1;}}
+#heroAction.show{display:flex;}
+body.bn-active #heroAction{bottom:76px;padding-bottom:8px;}  /* đẩy lên trên bottom nav */
+#heroAction .ha-btn{flex:1;padding:14px;border:none;border-radius:12px;font-weight:800;font-size:1rem;cursor:pointer;letter-spacing:.3px;transition:transform .1s,filter .12s;}
+#heroAction .ha-btn:active{transform:scale(.97);}
+#heroAction .ha-confirm{flex:2;background:linear-gradient(135deg,#22c55e,#059669);color:#fff;box-shadow:0 4px 18px rgba(34,197,94,.4);}
+#heroAction .ha-confirm:hover:not(:disabled){filter:brightness(1.1);}
+#heroAction .ha-confirm:disabled{background:linear-gradient(135deg,#4b5563,#374151);box-shadow:none;opacity:.55;cursor:not-allowed;}
+#heroAction .ha-skip{background:rgba(255,255,255,.06);color:var(--muted);border:1px solid var(--border);}
+#heroAction .ha-skip:hover{color:var(--text);border-color:var(--accent);}
+@media (min-width:1024px){ #heroAction{display:none!important;} }  /* desktop: nút trong promptBox đủ */
 /* Toast thông báo */
 #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1e1040;border:1px solid var(--accent);color:var(--text);padding:10px 20px;border-radius:12px;font-size:.9rem;z-index:200;opacity:0;transition:opacity .3s;pointer-events:none;}
 #toast.show{opacity:1;}
+#heroAction.show ~ #toast{bottom:calc(90px + env(safe-area-inset-bottom));}
+body.bn-active #heroAction.show ~ #toast{bottom:calc(160px + env(safe-area-inset-bottom));}
 /* Modal xác nhận */
 /* Death drama modal */
 #deathModal{position:fixed;inset:0;background:radial-gradient(circle at center,rgba(80,0,0,.85),rgba(0,0,0,.95));display:flex;align-items:center;justify-content:center;z-index:400;opacity:0;pointer-events:none;transition:opacity .3s;}
@@ -627,6 +736,14 @@ input:-webkit-autofill,input:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 100
     <div class="roster" id="lobbyList" style="margin-top:10px"></div>
     <div class="muted" id="lobbyStatus" style="margin-top:8px"></div>
 
+    <!-- Quick Match banner: countdown + notice -->
+    <div id="qmBanner" class="qm-banner hidden">
+      <div class="qm-title">⚡ Đang tìm ván nhanh</div>
+      <div class="qm-count"><span id="qmSecs">10</span><span class="qm-suf">s</span></div>
+      <div class="qm-sub" id="qmSub">Chờ thêm người chơi… sau đó tự bắt đầu ván</div>
+      <div class="qm-progress"><div class="qm-progress-fill" id="qmProgFill"></div></div>
+    </div>
+
     <div id="ownerSetup">
       <!-- Hero card: tiêu đề + số liệu + trạng thái + nút Bắt đầu -->
       <div class="rc-hero" id="rcHero">
@@ -709,8 +826,19 @@ input:-webkit-autofill,input:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 100
       </div>
     </section>
 
-    <section class="card g-role">
-      <div class="title">🃏 Vai của bạn</div>
+    <section class="card g-role" id="gRole">
+      <div class="title">🃏 Vai của bạn
+        <button type="button" class="role-toggle" id="roleToggleBtn" onclick="toggleRoleCompact()" title="Thu gọn / mở rộng">⬍</button>
+      </div>
+      <div class="role-compact-chip" id="roleCompactChip" onclick="openRoleModal()">
+        <div class="rc-ico" id="rcIco">🔒</div>
+        <div class="rc-body">
+          <div class="rc-nm" id="rcNm">Đang chờ nhận vai…</div>
+          <div class="rc-sub" id="rcSub">&nbsp;</div>
+        </div>
+        <span class="rc-team" id="rcTeam"></span>
+        <span class="rc-more">›</span>
+      </div>
       <div class="role-card" id="roleCard">
         <button type="button" class="peek-fab" id="peekBtn" onclick="peekRole()" title="Xem vai trong 3 giây">👁️</button>
         <div class="role-tilt" id="roleTilt"><div class="role-inner">
@@ -750,7 +878,7 @@ input:-webkit-autofill,input:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 100
 
     <section class="card hidden" id="histBox">
       <div class="title">📜 Lịch sử ván</div>
-      <div id="histList" style="line-height:1.6;font-size:.9rem"></div>
+      <div id="histList" style="line-height:1.6;font-size:.9rem;max-height:min(60vh,520px);overflow-y:auto;"></div>
     </section>
 
     <section class="card hidden" id="voteBox">
@@ -788,6 +916,25 @@ input:-webkit-autofill,input:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 100
     </section>
   </div>
 </main>
+<div id="roleModal" onclick="if(event.target===this)closeRoleModal()">
+  <div class="rm-body">
+    <button type="button" class="rm-close" onclick="closeRoleModal()" aria-label="Đóng">✕</button>
+    <div class="rm-card">
+      <div class="rm-art" id="rmArt"></div>
+      <div class="rm-icon" id="rmIcon"></div>
+      <div class="rm-plate">
+        <div class="rm-nm" id="rmNm"></div>
+        <span class="rm-team" id="rmTeam"></span>
+        <div class="rm-desc" id="rmDesc"></div>
+        <div class="rm-mates" id="rmMates"></div>
+      </div>
+    </div>
+  </div>
+</div>
+<div id="heroAction" aria-label="Hành động chính">
+  <button type="button" class="ha-btn ha-confirm" id="haConfirm" onclick="submitAction()">✔️ Xác nhận</button>
+  <button type="button" class="ha-btn ha-skip" onclick="submitSkip()">⏭️ Bỏ lượt</button>
+</div>
 <nav id="bottomNav" aria-label="Điều hướng game"></nav>
 
 <script src="role-art.js"></script>
@@ -845,10 +992,39 @@ async function doQuickMatch(){
   pendingIdToken=await getIdToken();
   const url=($('wsUrl').value.trim()||defUrl());
   ws=new WebSocket(url); $('conn').textContent='Đang tìm ván…';
+  isQuickMatch=true;    // để lobby biết ẩn config
   ws.onopen=()=>{ const idToken=pendingIdToken; pendingIdToken=null; send({t:'quickMatch',name,idToken}); };
   ws.onclose=()=>{ $('conn').textContent='Mất kết nối (tải lại trang để vào lại)'; };
   ws.onerror=()=>{ $('conn').textContent='Lỗi kết nối – server đã chạy chưa?'; };
   ws.onmessage=e=>handle(JSON.parse(e.data));
+}
+
+/* ── Quick Match countdown UI ── */
+function startQuickMatchCountdown(deadline, target){
+  qmDeadline=deadline||0; qmTarget=target||5; isQuickMatch=true;
+  const banner=$('qmBanner'); if(!banner) return;
+  banner.classList.remove('hidden');
+  if(qmTimerInt) clearInterval(qmTimerInt);
+  const tick=()=>{
+    const now=Date.now();
+    const secs=Math.max(0, Math.ceil((qmDeadline-now)/1000));
+    const total=10;    // QUICK_MATCH_WAIT_MS/1000 — hard-code phía client
+    const $s=$('qmSecs'); if($s) $s.textContent=secs;
+    const $c=document.querySelector('.qm-count'); if($c) $c.classList.toggle('low', secs<=3);
+    const $f=$('qmProgFill'); if($f){ const f=Math.max(0,Math.min(1,(total-secs)/total)); $f.style.width=(f*100).toFixed(1)+'%'; }
+    const nHumans=(players||[]).filter(p=>!p.isBot).length;
+    const $sub=$('qmSub'); if($sub){
+      if(nHumans>=qmTarget) $sub.textContent=`✅ Đủ ${nHumans} người — chuẩn bị bắt đầu`;
+      else if(secs>0) $sub.textContent=`👥 ${nHumans} người thật · thêm bot nếu chưa đủ khi hết giờ`;
+      else $sub.textContent='🤖 Đang thêm bot & bắt đầu ván…';
+    }
+    if(secs<=0){ clearInterval(qmTimerInt); qmTimerInt=null; }
+  };
+  tick(); qmTimerInt=setInterval(tick, 500);
+}
+function stopQuickMatchCountdown(){
+  if(qmTimerInt){ clearInterval(qmTimerInt); qmTimerInt=null; }
+  const banner=$('qmBanner'); if(banner) banner.classList.add('hidden');
 }
 
 /* ── Toast ── */
@@ -887,7 +1063,7 @@ function copyRoomCode(){
   if(!code){ showToast&&showToast('Chưa vào phòng nào'); return; }
   const url=`${location.origin}${location.pathname}?room=${encodeURIComponent(code)}`;
   navigator.clipboard.writeText(url).then(()=>{
-    showToast&&showToast('✅ Đã sao chép link mời phòng '+code);
+    showToast&&showToast('✅ Đã sao chép link mời phòng '+code); vib(20);
   }).catch(()=>{ prompt('Copy link mời:',url); });
 }
 function copyGameLog(){
@@ -929,6 +1105,7 @@ function copyInviteLink(){
 let pendingIdToken=null;  // idToken lấy trước khi kết nối WS
 
 let ws=null, myId=null, myTeam=null, myAlive=true, players=[], phase='lobby', meta={}, myReady=false, ownerId=null, isOwner=false;
+let isQuickMatch=false, qmDeadline=0, qmTarget=5, qmTimerInt=null;
 let curPrompt=null, sel=[], witchSel={heal:null,poison:null}, myVote=null, voteOptions=[];
 let chatBuf={main:[],wolf:[],dead:[]}, chatCh='main';
 let roleCatalog=[], roleCounts={};
@@ -992,6 +1169,7 @@ async function leaveRoom(force){
 window.addEventListener('load',()=>{
   $('wsUrl').value=defUrl();
   { const b=$('sndBtn'); if(b){ const ic=b.querySelector('.ico')||b; ic.textContent=sndOn?'🔊':'🔇'; } }
+  applyRoleCompactPref();
   // Đọc ?room= từ URL (link mời)
   const urlRoom=new URLSearchParams(location.search).get('room');
   if(urlRoom && $('inRoom')) $('inRoom').value=urlRoom.toUpperCase().slice(0,16);
@@ -1037,14 +1215,33 @@ function sndDay(){ [293,349,440,523].forEach((f,i)=>setTimeout(()=>tone({w:'tria
 function sndTurn(){ tone({f0:880,d:.12,v:.11}); setTimeout(()=>tone({f0:1175,d:.2,v:.11}),140); }
 function sndWin(){ [523,659,784,1047].forEach((f,i)=>setTimeout(()=>tone({w:'triangle',f0:f,d:.5,v:.12}),i*130)); }
 function sndFail(){ [220,175,131,98].forEach((f,i)=>setTimeout(()=>tone({w:'sawtooth',f0:f,d:.45,v:.13}),i*120)); }
+/* Haptic feedback helper — pattern number or array; check user pref (default on). */
+let hapticOn=(localStorage.getItem('masoi_haptic')!=='0');
+function vib(pat){ if(!hapticOn||!navigator.vibrate) return; try{ navigator.vibrate(pat); }catch(e){} }
+function toggleHaptic(){ hapticOn=!hapticOn; localStorage.setItem('masoi_haptic',hapticOn?'1':'0'); vib(20); return hapticOn; }
+
+/* Hero action bar — mirror trạng thái pConfirm, hiện khi có prompt (mobile). */
+function syncHeroAction(){
+  const el=$('heroAction'); if(!el) return;
+  const active=!!curPrompt;
+  el.classList.toggle('show', active);
+  if(!active) return;
+  const src=$('pConfirm'); const dst=$('haConfirm'); if(!src||!dst) return;
+  dst.disabled=src.disabled;
+  dst.textContent=src.textContent||'✔️ Xác nhận';
+}
 function toggleSnd(){ sndOn=!sndOn; localStorage.setItem('masoi_ws_snd',sndOn?'1':'0'); const b=$('sndBtn'); if(b){ const ic=b.querySelector('.ico')||b; ic.textContent=sndOn?'🔊':'🔇'; } if(sndOn)tone({f0:660,d:.15,v:.1}); }
 document.addEventListener('pointerdown',function once(){ try{aCtx();}catch(e){} document.removeEventListener('pointerdown',once); });
 
 /* ── Đếm ngược ── */
 const cds={}; const cdEl={vote:'voteTimer',day:'dayTimer'};
-function countdown(key,deadline,prefix){ clearInterval(cds[key]); const el=$(cdEl[key]); if(!el||!deadline) return;
-  const upd=()=>{const s=Math.max(0,Math.ceil((deadline-Date.now())/1000)); el.textContent=prefix+' '+s+'s'; if(s<=0){clearInterval(cds[key]);el.textContent='';}}; upd(); cds[key]=setInterval(upd,500); }
-function clearCd(key){ clearInterval(cds[key]); const el=$(cdEl[key]); if(el) el.textContent=''; }
+const cdDeadlines={}; const cdTotals={};
+function countdown(key,deadline,prefix,total){ clearInterval(cds[key]); const el=$(cdEl[key]); if(!el||!deadline) return;
+  cdDeadlines[key]=deadline;
+  // Ưu tiên "total" từ server (thời lượng gốc của phase) — nếu không có mới ước lượng từ remaining
+  cdTotals[key]=Math.max(1, (typeof total==='number' && total>0) ? total : Math.ceil((deadline-Date.now())/1000));
+  const upd=()=>{const s=Math.max(0,Math.ceil((deadline-Date.now())/1000)); el.textContent=prefix+' '+s+'s'; if(s<=0){clearInterval(cds[key]);el.textContent=''; cdDeadlines[key]=null;}}; upd(); cds[key]=setInterval(upd,500); }
+function clearCd(key){ clearInterval(cds[key]); const el=$(cdEl[key]); if(el) el.textContent=''; cdDeadlines[key]=null; cdTotals[key]=0; }
 
 /* ── XỬ LÝ MESSAGE ── */
 function handle(m){
@@ -1059,6 +1256,7 @@ function handle(m){
     case 'toast': showToast(m.message); break;
     case 'rooms': renderRooms(m.list); break;
     case 'roles': roleCatalog=m.roles||[]; renderRoleConfig(); break;
+    case 'quickMatchWaiting': startQuickMatchCountdown(m.deadline, m.target||5); break;
     case 'lobby': players=m.players; ownerId=m.ownerId; isOwner=(myId===ownerId); show('scrJoin',false); show('scrLobby',true); show('leaveBtn',true);
       { const rc=$('lobbyRoomCode'); if(rc){ const code=localStorage.getItem('masoi_ws_room')||''; rc.textContent=code?'📌 '+code:''; } }
       renderRoster('lobbyList'); if(roleCatalog.length) renderRoleConfig(); updVillager(); renderLobby(); break;
@@ -1066,20 +1264,29 @@ function handle(m){
     case 'state': onState(m); break;
     case 'scene':
       if(m.phase==='night'){ sceneOverlay('🌙',`Đêm ${m.nightNo} buông xuống…`,'night'); clearCd('day'); sndNight(); }
-      else if(m.phase==='day'){ sceneOverlay('🌅','Trời sáng rồi!','day'); $('announce').textContent='🗣️ Cả làng thảo luận…'; countdown('day', m.deadline, '🗣️ Mở vote sau'); sndDay(); }
+      else if(m.phase==='day'){ sceneOverlay('🌅','Trời sáng rồi!','day'); renderTimeline(); countdown('day', m.deadline, '🗣️ Mở vote sau', m.total); sndDay(); }
       break;
-    case 'prompt': curPrompt=m; sel=[]; witchSel={heal:null,poison:null}; promptTotal=m.deadline?Math.max(1,Math.ceil((m.deadline-Date.now())/1000)):0;
-      show('sleepBox',false); show('promptBox',true); renderPrompt(); sndTurn(); if(navigator.vibrate)try{navigator.vibrate([200,90,200]);}catch(e){} break;
-    case 'sleep': curPrompt=null; show('promptBox',false); show('sleepBox',true); break;
+    case 'prompt': curPrompt=m; sel=[]; witchSel={heal:null,poison:null};
+      // Ưu tiên "total" từ server (thời lượng gốc của lượt) — resume/late-connect vẫn có progress bar đúng
+      promptTotal=(typeof m.total==='number' && m.total>0) ? m.total : (m.deadline?Math.max(1,Math.ceil((m.deadline-Date.now())/1000)):0);
+      show('sleepBox',false); show('promptBox',true); renderPrompt(); syncHeroBar(); sndTurn(); vib([200,90,200]); break;
+    case 'sleep': curPrompt=null; show('promptBox',false); show('sleepBox',true); syncHeroBar(); syncHeroAction(); break;
     case 'privateResult': show('resultBox',true); $('resultBox').textContent='🔒 '+m.text; break;
-    case 'morning': show('promptBox',false); show('sleepBox',false); show('dayBox',true); $('announce').textContent=(m.lines||[]).join('\n'); pushHist(`🌙 Đêm ${m.nightNo}`, m.lines); break;
+    case 'morning': show('promptBox',false); show('sleepBox',false); show('dayBox',true); pushHist(`🌙 Đêm ${m.nightNo}`, m.lines); renderTimeline(); break;
     case 'voteOpen': renderVote(m); break;
     case 'voteTally': $('voteStatus').textContent='Phiếu: '+Object.entries(m.tally).map(([i,c])=>`${(players[i]&&players[i].name)||('#'+i)}:${c}`).join('  ·  '); break;
-    case 'day': show('voteBox',false); clearCd('vote'); clearCd('day'); $('announce').textContent=(m.lines||[]).join('\n'); pushHist(`⚖️ Ngày ${meta.dayNo||''}`.trim(), m.lines); break;
+    case 'day': show('voteBox',false); clearCd('vote'); clearCd('day'); pushHist(`⚖️ Ngày ${meta.dayNo||''}`.trim(), m.lines); renderTimeline(); break;
     case 'chatMsg': (chatBuf[m.channel]||=[]).push(m); if(m.channel===chatCh) renderChat();
-      /* Tăng badge chưa đọc nếu đang ở tab khác + không phải tin của mình */
-      if(document.body.classList.contains('bn-active') && !document.body.classList.contains('bn-chat')){
-        const meName=(players.find(p=>p.id===myId)||{}).name; if(m.from!==meName){ bnChatUnread++; updateBottomNav(); }
+      /* Tăng badge chưa đọc cho ĐÚNG kênh — trừ khi đang ở tab chat + đang xem đúng kênh đó, và không phải tin của mình */
+      { const inBn=document.body.classList.contains('bn-active');
+        const inChatTab=document.body.classList.contains('bn-chat');
+        const viewingSame = inChatTab && chatCh===m.channel;
+        const meName=(players.find(p=>p.id===myId)||{}).name;
+        const isMine = m.from===meName;
+        if(inBn && !viewingSame && !isMine){
+          bnChatUnread[m.channel]=(bnChatUnread[m.channel]||0)+1;
+          updateBottomNav(); updateChatTabs();
+        }
       }
       break;
     case 'gameOver': renderEnd(m); if(m.history) renderFinalHistory(m.history); sndWin(); break;
@@ -1087,9 +1294,10 @@ function handle(m){
       histItems=[]; if($('histList'))$('histList').innerHTML=''; show('histBox',false);
       { const ht=$('histBox').querySelector('.title'); if(ht) ht.textContent='📜 Lịch sử ván'; }
       show('endBox',false); show('dayBox',false); show('resultBox',false); show('promptBox',false); show('sleepBox',false);
-      curPrompt=null; myTeam=null; myVote=null; chatBuf={main:[],wolf:[],dead:[]};
-      const ra=$('rArt'); if(ra){ ra.innerHTML=''; ra.dataset.role=''; } $('announce').textContent='';
+      curPrompt=null; myTeam=null; myVote=null; chatBuf={main:[],wolf:[],dead:[]}; currentRole=null; bnChatUnread={main:0,wolf:0,dead:0}; syncHeroAction();
+      const ra=$('rArt'); if(ra){ ra.innerHTML=''; ra.dataset.role=''; } $('announce').innerHTML='';
       { const rc=$('roleCard'); if(rc) rc.classList.remove('revealed','show'); }
+      { const nm=$('rcNm'); if(nm) nm.textContent='Đang chờ nhận vai…'; const sub=$('rcSub'); if(sub) sub.innerHTML='&nbsp;'; const tm=$('rcTeam'); if(tm) tm.textContent=''; const ic=$('rcIco'); if(ic) ic.textContent='🔒'; }
       break;
     }
     case 'error': $('pErr').textContent=m.message||''; $('joinErr').textContent=m.message||'';
@@ -1104,9 +1312,11 @@ function onState(m){
   if(m.ownerId!==undefined){ ownerId=m.ownerId; isOwner=(myId===ownerId); }
   const me=players.find(p=>p.id===myId); myAlive=me?me.alive!==false:true;
   show('scrJoin',false); show('scrLobby',phase==='lobby'); show('scrGame',phase&&phase!=='lobby'); show('leaveBtn',true);
+  // Ván đã bắt đầu → dừng countdown quickMatch
+  if(phase!=='lobby') stopQuickMatchCountdown();
   if(phase==='lobby'){ renderRoster('lobbyList'); if(roleCatalog.length) renderRoleConfig(); updVillager(); renderLobby(); prevAlive=true;
     /* Cleanup bottom nav khi về lobby */
-    document.body.classList.remove('bn-active','bn-main','bn-chat','bn-players','bn-night','bn-day','bn-ended');
+    document.body.classList.remove('bn-active','bn-main','bn-chat','bn-players','bn-hist','bn-night','bn-day','bn-ended');
     const bn=$('bottomNav'); if(bn) bn.classList.remove('show');
     return;
   }
@@ -1116,7 +1326,7 @@ function onState(m){
     if(deadBannerHideTimer) clearTimeout(deadBannerHideTimer);
     deadBannerHideTimer=setTimeout(()=>{ show('deadBanner',false); }, 6000);
     // Auto switch chat sang Âm phủ khi vừa chết
-    if(typeof chatCh!=='undefined' && chatCh==='main'){ chatCh='dead'; updateChatTabs(); }
+    if(typeof chatCh!=='undefined' && chatCh==='main'){ setChatCh('dead'); }
   } else if(myAlive){ show('deadBanner',false); if(deadBannerHideTimer){clearTimeout(deadBannerHideTimer);deadBannerHideTimer=null;} }
   prevAlive=myAlive;
   // Spectator HUD: hiện khi đã chết & ván đang chạy
@@ -1128,7 +1338,7 @@ function onState(m){
       if(!myAlive) rc.classList.add('revealed');
       else rc.classList.remove('revealed');
   }}
-  if(phase!=='night'){ show('promptBox',false); show('sleepBox',false); clearInterval(promptTimerInt); }
+  if(phase!=='night'){ show('promptBox',false); show('sleepBox',false); clearInterval(promptTimerInt); curPrompt=null; syncHeroAction(); }
   if(phase!=='day'){ show('voteBox',false); clearCd('vote'); clearCd('day'); }
   if(phase==='day') show('dayBox',true);
   else if(phase==='ended'){ // Khi kết thúc: chỉ giữ dayBox nếu có nội dung diễn biến
@@ -1191,7 +1401,9 @@ setInterval(()=>{ try{ if(!myAlive) syncSpectatorTimer(); }catch(e){} }, 500);
 
 /* ── Bottom Navigation (3 tab contextual theo phase) ── */
 let bnTab='main';           // 'main' | 'chat' | 'players'
-let bnChatUnread=0;         // đếm tin chưa đọc khi không ở tab chat
+let bnChatUnread={main:0,wolf:0,dead:0};  // đếm tin chưa đọc theo từng kênh
+const CH_LBL_VI={main:'Chung',wolf:'Sói',dead:'Âm phủ'};
+function bnChatUnreadTotal(){ return (bnChatUnread.main||0)+(bnChatUnread.wolf||0)+(bnChatUnread.dead||0); }
 function updateBottomNav(){
   const nav=$('bottomNav'); if(!nav) return;
   const body=document.body;
@@ -1201,16 +1413,18 @@ function updateBottomNav(){
   // Ẩn CHỈ khi không trong game/ended. Còn lại luôn hiện (kể cả khán giả đã chết).
   if(!inGame){
     nav.classList.remove('show');
-    body.classList.remove('bn-active','bn-main','bn-chat','bn-players');
+    body.classList.remove('bn-active','bn-main','bn-chat','bn-players','bn-hist');
     return;
   }
   body.classList.add('bn-active','bn-'+phase);
   const isSpec = !myAlive && phase!=='ended';       // khán giả trong ván đang chạy
   if(isSpec) body.classList.add('bn-spec');
   // Đảm bảo có tab active
-  if(!body.classList.contains('bn-main') && !body.classList.contains('bn-chat') && !body.classList.contains('bn-players')){
+  if(!body.classList.contains('bn-main') && !body.classList.contains('bn-chat') && !body.classList.contains('bn-players') && !body.classList.contains('bn-hist')){
     body.classList.add('bn-'+bnTab);
   }
+  /* Nếu chuyển sang phase mà tab 'hist' không còn (in-game), tự về main */
+  if(body.classList.contains('bn-hist') && phase!=='ended'){ body.classList.remove('bn-hist'); body.classList.add('bn-main'); bnTab='main'; }
   nav.classList.add('show');
   let tabs;
   if(isSpec){
@@ -1221,24 +1435,38 @@ function updateBottomNav(){
   } else if(phase==='day'){
     tabs=[{id:'main',ico:'🗳',lbl:'Bỏ phiếu'},{id:'chat',ico:'💬',lbl:'Chat'},{id:'players',ico:'👥',lbl:'Người chơi'}];
   } else {
-    // Ended: chỉ 2 tab — Kết quả (đã có reveal theo phe = "Người chơi + Phe thắng") + Lịch sử
-    tabs=[{id:'main',ico:'🏆',lbl:'Kết quả & Reveal'},{id:'chat',ico:'📜',lbl:'Lịch sử'}];
+    // Ended: 3 tab — Kết quả (reveal) · Chat · Lịch sử (tách riêng để chat không trộn với hist)
+    tabs=[{id:'main',ico:'🏆',lbl:'Kết quả'},{id:'chat',ico:'💬',lbl:'Chat'},{id:'hist',ico:'📜',lbl:'Lịch sử'}];
     // Nếu đang ở tab players (từ phase trước) → tự chuyển về main
     if(body.classList.contains('bn-players')){ body.classList.remove('bn-players'); body.classList.add('bn-main'); bnTab='main'; }
   }
   nav.innerHTML=tabs.map(t=>{
     const on=body.classList.contains('bn-'+t.id);
-    const dot=(t.id==='chat'&&!on&&bnChatUnread>0)?'<span class="bn-dot" title="Có tin mới"></span>':'';
-    return `<button class="bn-tab${on?' on':''}" onclick="setBnTab('${t.id}')" aria-label="${t.lbl}"><span class="bn-ico">${t.ico}</span><span class="bn-lbl">${t.lbl}</span>${dot}</button>`;
+    let extra='';
+    if(t.id==='chat'){
+      /* Badges per-channel: chỉ hiện cho kênh có tin chưa đọc + không phải kênh đang xem (nếu đang ở tab chat) */
+      const chans=['main','wolf','dead'].filter(c=>(bnChatUnread[c]||0)>0 && !(on && chatCh===c));
+      const badges=chans.map(c=>`<span class="bn-chan-badge ${c}" title="${CH_LBL_VI[c]}: ${bnChatUnread[c]} tin mới">${bnChatUnread[c]>99?'99+':bnChatUnread[c]}</span>`).join('');
+      if(badges) extra+=`<span class="bn-chan-badges">${badges}</span>`;
+      /* Sub-label liệt kê kênh có tin mới (chỉ hiện khi có ≥1 kênh, không phân biệt on/off) */
+      const namedChans=chans.map(c=>CH_LBL_VI[c]);
+      if(namedChans.length) extra+=`<span class="bn-lbl-sub">· ${namedChans.join(', ')}</span>`;
+    }
+    return `<button class="bn-tab${on?' on':''}" onclick="setBnTab('${t.id}')" aria-label="${t.lbl}"><span class="bn-ico">${t.ico}</span><span class="bn-lbl">${t.lbl}</span>${extra}</button>`;
   }).join('');
 }
 function setBnTab(id){
+  vib(15);
   bnTab=id;
   const body=document.body;
-  body.classList.remove('bn-main','bn-chat','bn-players');
+  body.classList.remove('bn-main','bn-chat','bn-players','bn-hist');
   body.classList.add('bn-'+id);
-  if(id==='chat') bnChatUnread=0;
+  if(id==='chat'){
+    /* Chỉ reset kênh đang xem — kênh khác vẫn giữ đếm để user biết còn tin */
+    bnChatUnread[chatCh]=0;
+  }
   updateBottomNav();
+  updateChatTabs();
   // Cuộn lên đầu khi đổi tab (mobile)
   if(window.matchMedia('(max-width:1023px)').matches){
     window.scrollTo({top:0,behavior:'smooth'});
@@ -1251,25 +1479,87 @@ function renderStatusBar(){
   let ph='🚪 Chờ';
   if(phase==='night') ph=`🌙 Đêm ${meta.nightNo||''}`; else if(phase==='day') ph=`☀️ Ngày ${meta.dayNo||''}`; else if(phase==='ended') ph='🏁 Kết thúc';
   const roomCode=localStorage.getItem('masoi_ws_room')||'';
-  const parts=[`<span class="sb-chip sb-phase">${ph}</span>`,`<span class="sb-chip sb-timer" id="sbTimer">⏱ --</span>`,`<span class="sb-chip sb-alive">👥 ${alive}/${total}</span>`];
-  if(roomCode) parts.push(`<button class="sb-chip sb-room" title="Bấm để sao chép mã phòng" onclick="copyRoomCode()">🏷<span class="rlbl"> Phòng</span> <b>${esc(roomCode)}</b> 📋</button>`);
-  if(!myAlive) parts.push('<span class="sb-chip sb-dead">👻 Đã chết</span>');
-  $('statusBar').innerHTML=parts.join('');
+  const chips=[`<span class="sb-chip sb-phase">${ph}</span>`,`<span class="sb-chip sb-timer" id="sbTimer">⏱ --</span>`,`<span class="sb-chip sb-alive">👥 ${alive}/${total}</span>`];
+  if(roomCode) chips.push(`<button class="sb-chip sb-room" title="Bấm để sao chép mã phòng" onclick="copyRoomCode()">🏷<span class="rlbl"> Phòng</span> <b>${esc(roomCode)}</b> 📋</button>`);
+  if(!myAlive) chips.push('<span class="sb-chip sb-dead">👻 Đã chết</span>');
+  const showTurn = phase==='night' || phase==='day';
+  const showProgress = showTurn;
+  $('statusBar').innerHTML=
+    `<div class="sb-chips">${chips.join('')}</div>`
+    + (showTurn ? `<div class="sb-turn" id="sbTurn"></div>` : '')
+    + (showProgress ? `<div class="sb-progress"><div class="sb-progress-fill" id="sbProgFill"></div></div>` : '');
   updateBottomNav();
-  syncStatusTimer();
+  syncHeroBar();
 }
-function syncStatusTimer(){
-  const el=$('sbTimer'); if(!el) return;
-  let src=null;
-  if(phase==='night'){ const t=$('pTimer'); if(t&&t.textContent&&t.textContent!=='--') src=t.textContent; }
-  else if(phase==='day'){ const t=$('voteTimer')||$('dayTimer'); if(t&&t.textContent) src=t.textContent.replace(/[^\d]/g,''); }
-  if(src==null||src===''){ el.textContent='⏱ --'; el.classList.remove('low'); return; }
-  const n=parseInt(src,10);
-  el.textContent='⏱ '+(isNaN(n)?src:formatMMSS(n));
-  el.classList.toggle('low', !isNaN(n) && n>0 && n<=10);
+function computeTurnLabel(){
+  if(!myAlive){
+    if(phase==='night') return {text:'👻 Khán giả — quan sát ban đêm', cls:''};
+    if(phase==='day')   return {text:'👻 Khán giả — không thể bỏ phiếu', cls:''};
+    return {text:'', cls:''};
+  }
+  if(phase==='night'){
+    if(curPrompt){
+      const label = curPrompt.mode==='witch' ? 'Phù Thủy' : stepVi(curPrompt.stepType||'');
+      return {text:`🎯 Đến lượt bạn — ${esc(label)}`, cls:'my-turn'};
+    }
+    return {text:'😴 Đang chờ các vai khác…', cls:'night-wait'};
+  }
+  if(phase==='day'){
+    const voteBoxEl=$('voteBox'); const voteOpen = voteBoxEl && !voteBoxEl.classList.contains('hidden');
+    if(voteOpen){
+      if(myVote){
+        const voted=(voteOptions.find(o=>o.id===myVote)||{}).name;
+        return {text:`🗳 Bạn đã bỏ phiếu${voted?': '+esc(voted):''}`, cls:'day-vote'};
+      }
+      return {text:'🗳 Đang bỏ phiếu treo cổ — chạm để chọn', cls:'day-vote'};
+    }
+    return {text:'💬 Cả làng đang thảo luận…', cls:'day-talk'};
+  }
+  return {text:'', cls:''};
+}
+function currentCountdown(){
+  // Trả về {s, total} cho phase hiện tại: night = curPrompt; day = vote (nếu mở) hoặc day countdown.
+  const now=Date.now();
+  if(phase==='night' && curPrompt && curPrompt.deadline){
+    const s=Math.max(0,Math.ceil((curPrompt.deadline-now)/1000));
+    return {s, total:promptTotal||s||1};
+  }
+  if(phase==='day'){
+    const dl = cdDeadlines.vote || cdDeadlines.day;
+    const tot = cdTotals.vote || cdTotals.day;
+    if(dl){ const s=Math.max(0,Math.ceil((dl-now)/1000)); return {s, total:tot||s||1}; }
+  }
+  return null;
+}
+function syncHeroBar(){
+  const cd=currentCountdown();
+  const el=$('sbTimer');
+  if(el){
+    if(!cd){ el.textContent='⏱ --'; el.classList.remove('low'); }
+    else {
+      el.textContent='⏱ '+formatMMSS(cd.s);
+      el.classList.toggle('low', cd.s>0 && cd.s<=10);
+    }
+  }
+  const turnEl=$('sbTurn');
+  if(turnEl){
+    const t=computeTurnLabel();
+    turnEl.className='sb-turn'+(t.cls?' '+t.cls:'');
+    turnEl.innerHTML=t.text||'&nbsp;';
+    if(!t.text) turnEl.style.display='none'; else turnEl.style.display='';
+  }
+  const fill=$('sbProgFill');
+  if(fill){
+    if(!cd){ fill.style.width='0%'; fill.className='sb-progress-fill'; }
+    else {
+      const f=Math.max(0,Math.min(1,cd.s/Math.max(1,cd.total)));
+      fill.style.width=(f*100).toFixed(1)+'%';
+      fill.className='sb-progress-fill'+(f<=.25?' crit':f<=.5?' warn':'');
+    }
+  }
 }
 function formatMMSS(s){ const m=Math.floor(s/60); const r=s%60; return m>0?`${m}:${String(r).padStart(2,'0')}`:`${s}s`; }
-setInterval(()=>{ try{syncStatusTimer();}catch(e){} }, 500);
+setInterval(()=>{ try{syncHeroBar();}catch(e){} }, 500);
 function dicebearUrl(name){
   return 'https://api.dicebear.com/9.x/personas/svg?seed='+encodeURIComponent(name)+'&backgroundColor=transparent';
 }
@@ -1391,7 +1681,9 @@ function renderRoster(elId){
     </div>`;
   }).join('');
 }
+let currentRole=null;
 function renderRole(m){
+  currentRole=m;
   const art=(window.ROLE_ART||{})[m.role.id]||'';
   if($('rArt').dataset.role!==m.role.id){ $('rArt').innerHTML=art; $('rArt').dataset.role=m.role.id; }
   $('rIcon').style.display=art?'none':'block'; $('rIcon').textContent=m.role.icon;
@@ -1399,19 +1691,50 @@ function renderRole(m){
   const cat=(roleCatalog||[]).find(r=>r.id===m.role.id);
   $('rDesc').textContent=(cat&&cat.desc)||'';
   $('rMates').textContent=(m.mates&&m.mates.length)?('Đồng đội: '+m.mates.map(x=>x.name).join(', ')):'';
+  /* Compact chip */
+  const ic=$('rcIco'); if(ic) ic.textContent=m.role.icon||'🎭';
+  const nm=$('rcNm'); if(nm) nm.textContent=m.role.name;
+  const tm=$('rcTeam'); if(tm) tm.textContent=TEAM_VI[m.role.team]||m.role.team;
+  const sub=$('rcSub'); if(sub) sub.textContent=(m.mates&&m.mates.length)?('Đồng đội: '+m.mates.map(x=>x.name).join(', ')):'Bấm để xem chi tiết';
   updateChatTabs();
 }
+function applyRoleCompactPref(){
+  const g=$('gRole'); if(!g) return;
+  const compact=localStorage.getItem('masoi_role_compact')!=='0'; /* mặc định compact */
+  g.classList.toggle('compact', compact);
+  const btn=$('roleToggleBtn'); if(btn) btn.textContent=compact?'⤢':'⤡';
+}
+function toggleRoleCompact(){
+  const g=$('gRole'); if(!g) return;
+  const nowCompact=!g.classList.contains('compact');
+  g.classList.toggle('compact', nowCompact); vib(15);
+  localStorage.setItem('masoi_role_compact', nowCompact?'1':'0');
+  const btn=$('roleToggleBtn'); if(btn) btn.textContent=nowCompact?'⤢':'⤡';
+}
+function openRoleModal(){
+  if(!currentRole) return;
+  const m=currentRole;
+  const art=(window.ROLE_ART||{})[m.role.id]||'';
+  $('rmArt').innerHTML=art; $('rmIcon').style.display=art?'none':'block'; $('rmIcon').textContent=m.role.icon||'🎭';
+  $('rmNm').textContent=m.role.name; $('rmTeam').textContent=TEAM_VI[m.role.team]||m.role.team;
+  const cat=(roleCatalog||[]).find(r=>r.id===m.role.id);
+  $('rmDesc').textContent=(cat&&cat.desc)||'';
+  $('rmMates').textContent=(m.mates&&m.mates.length)?('Đồng đội: '+m.mates.map(x=>x.name).join(', ')):'';
+  $('roleModal').classList.add('show'); vib(20);
+}
+function closeRoleModal(){ $('roleModal').classList.remove('show'); }
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeRoleModal(); });
 function showDeathModal(){
   const m=$('deathModal'); if(!m) return;
   m.classList.add('show');
   try{ sndFail&&sndFail(); }catch(e){}
-  if(navigator.vibrate) try{navigator.vibrate([250,80,250,80,500]);}catch(e){}
+  vib([250,80,250,80,500]);
   setTimeout(()=>m.classList.remove('show'), 2600);
 }
 let peekTimer=null;
 function peekRole(){
   const rc=$('roleCard'); if(!rc) return;
-  rc.classList.add('show');
+  rc.classList.add('show'); vib(20);
   if(peekTimer) clearTimeout(peekTimer);
   peekTimer=setTimeout(()=>{ rc.classList.remove('show'); peekTimer=null; }, 3000);
 }
@@ -1513,6 +1836,7 @@ function renderPrompt(){
       if(s<=5&&s>0&&s!==lastSecTick){ lastSecTick=s; try{tone({f0:s<=3?880:660,d:.09,v:.08});}catch(e){} }
       if(s<=0){clearInterval(promptTimerInt);wrap.classList.remove('low');} }; tick(); promptTimerInt=setInterval(tick,500); }
   else { $('pTimer').textContent='--'; ring.style.strokeDashoffset=0; }
+  syncHeroAction();
 }
 function togglePick(id){ const max=(curPrompt&&curPrompt.max)||1; const i=sel.indexOf(id);
   if(i>=0) sel.splice(i,1); else if(max===1) sel=[id]; else if(sel.length<max) sel.push(id);
@@ -1523,26 +1847,27 @@ function tapTarget(id){
   const i=sel.indexOf(id);
   if(i>=0){
     // Chạm lần 2 vào người đã chọn → bỏ chọn (không auto submit)
-    sel.splice(i,1);
+    sel.splice(i,1); vib(12);
   } else if(max===1){
     // Single-select: chọn (thay thế lựa chọn cũ nếu có), KHÔNG auto submit
-    sel=[id];
+    sel=[id]; vib(18);
   } else if(sel.length<max){
     // Multi-select: thêm vào, KHÔNG auto submit — user tự bấm Xác nhận
-    sel.push(id);
+    sel.push(id); vib(18);
   } else {
     // Đã đủ max — chạm người mới không hiệu lực, gợi ý bỏ chọn ai đó
-    showToast&&showToast(`Đã chọn đủ ${max} người — bỏ chọn ai đó trước`);
+    showToast&&showToast(`Đã chọn đủ ${max} người — bỏ chọn ai đó trước`); vib([25,40,25]);
     return;
   }
   renderPrompt();
 }
-function pickWitch(k,id){ witchSel[k]=witchSel[k]===id?null:id; renderPrompt(); }
+function pickWitch(k,id){ witchSel[k]=witchSel[k]===id?null:id; vib(15); renderPrompt(); }
 function submitAction(){ if(!curPrompt) return;
   if(curPrompt.mode==='witch') send({t:'action',action:{heal:witchSel.heal,poison:witchSel.poison}});
   else { if(!sel.length) return; send({t:'action',action:{targets:sel}}); }
-  curPrompt=null; show('promptBox',false); show('sleepBox',true); clearInterval(promptTimerInt); }
-function submitSkip(){ send({t:'action',action:{skip:true}}); curPrompt=null; show('promptBox',false); show('sleepBox',true); clearInterval(promptTimerInt); }
+  vib([35,25,35]);
+  curPrompt=null; show('promptBox',false); show('sleepBox',true); clearInterval(promptTimerInt); syncHeroBar(); syncHeroAction(); }
+function submitSkip(){ send({t:'action',action:{skip:true}}); vib(25); curPrompt=null; show('promptBox',false); show('sleepBox',true); clearInterval(promptTimerInt); syncHeroBar(); syncHeroAction(); }
 const stepVi=t=>({
   wolf:'Ma Sói cắn',seer:'Tiên Tri soi',witch:'Phù Thủy',bodyguard:'Bảo Vệ',doctor:'Bác Sĩ',
   hunter:'Thợ Săn',cupid:'Cupid',whitewolf:'Sói Trắng',serialkiller:'Sát Nhân',
@@ -1563,17 +1888,32 @@ const stepVi=t=>({
 
 function renderVote(m){
   show('voteBox',true); voteOptions=m.options||[]; myVote=null; drawVote();
+  const aliveCnt=players.filter(p=>p.alive!==false).length;
+  const need=Math.ceil(aliveCnt*2/3);
+  const rule=`⚖️ Cần ≥ <b>${need}</b> phiếu (2/3 của ${aliveCnt} sống) để treo cổ.`;
   if(!myAlive){
-    $('voteStatus').textContent='👻 Bạn đã chết – chỉ xem, không thể bỏ phiếu.';
+    $('voteStatus').innerHTML=`👻 Bạn đã chết – chỉ xem, không thể bỏ phiếu.<br>${rule}`;
   } else {
-    $('voteStatus').textContent='Chưa vote – bấm để chọn.';
+    $('voteStatus').innerHTML=`Chưa vote – bấm để chọn.<br>${rule}`;
   }
-  clearCd('day'); $('dayTimer').textContent=''; countdown('vote',m.deadline,'⏱️ Còn');
+  clearCd('day'); $('dayTimer').textContent=''; countdown('vote',m.deadline,'⏱️ Còn',m.total);
+  syncHeroBar();
 }
 let histItems=[];
-function pushHist(label,lines){ histItems.push({label,lines:(lines||[])}); renderHist(); }
-function renderHist(){ if(!histItems.length){ show('histBox',false); return; } show('histBox',true);
-  $('histList').innerHTML=histItems.map(h=>`<div style="margin-bottom:8px"><b>${esc(h.label)}</b><div class="muted" style="white-space:pre-line">${esc(h.lines.join('\n'))||'—'}</div></div>`).join(''); }
+function pushHist(label,lines){ histItems.push({label,lines:(lines||[])}); /* histBox chỉ render lúc ended (renderFinalHistory) — in-game dùng renderTimeline() vào dayBox */ }
+function renderTimeline(){
+  const el=$('announce'); if(!el) return;
+  if(!histItems.length){ el.classList.remove('plain'); el.innerHTML='<div class="tl-empty">🕰️ Chưa có diễn biến. Chờ hết đêm đầu tiên…</div>'; return; }
+  const rows=[...histItems].reverse(); /* mới nhất lên trên */
+  const html=rows.map((h,i)=>{
+    const isNight=/Đêm/i.test(h.label);
+    const badge=i===0?'<span class="tl-latest">Mới nhất</span>':'';
+    const body=esc(h.lines.join('\n'))||'—';
+    return `<div class="tl-card ${isNight?'night':'day'}"><div class="tl-hd"><b>${esc(h.label)}</b>${badge}</div><div class="tl-lines">${body}</div></div>`;
+  }).join('');
+  el.classList.remove('plain');
+  el.innerHTML=`<div class="tl-scroll">${html}</div>`;
+}
 let hcSeq=0;
 function toggleHc(id){ const b=document.getElementById(id); if(b) b.style.display=(b.style.display==='none'?'block':'none'); }
 // Thẻ gập được: header (nhãn + tóm tắt bên phải + ▼) → body chi tiết. Giống bản offline.
@@ -1633,12 +1973,15 @@ function drawVote(){
     </div>`).join('');
 }
 function castVote(id){
-  if(!myAlive){ showToast&&showToast('👻 Đã chết không thể bỏ phiếu'); return; }
+  if(!myAlive){ showToast&&showToast('👻 Đã chết không thể bỏ phiếu'); vib([25,40,25]); return; }
   myVote=id; send({t:'vote',target:id}); drawVote(); $('voteStatus').textContent='✅ Đã vote: '+nameOf(id);
+  vib([30,25,30]);
+  syncHeroBar();
 }
 
 function renderEnd(m){
   show('endBox',true); show('promptBox',false); show('sleepBox',false); show('voteBox',false);
+  curPrompt=null; syncHeroAction();
   /* Dừng mọi countdown còn chạy để statusbar không hiện "⏱ 2s" khi đã kết thúc */
   clearInterval(promptTimerInt); clearCd('vote'); clearCd('day');
   $('pTimer') && ($('pTimer').textContent='--');
@@ -1657,10 +2000,11 @@ function renderEnd(m){
       const av=dicebearUrl(r.name);
       const badge=won?'🏆':'💀';
       const dead=r.alive?'':' <span class="rv-dead">✕ chết</span>';
+      const botTag=r.isBot?' <span class="rv-bot" title="Bot">🤖</span>':'';
       return `<div class="rv-item rv-${g.team}${won?' rv-won':''}">
         <img class="rv-av" src="${av}" alt="">
         <div class="rv-body">
-          <div class="rv-name">${esc(r.name)}</div>
+          <div class="rv-name">${esc(r.name)}${botTag}</div>
           <div class="rv-role">${esc(r.role)}${dead}</div>
         </div>
         <span class="rv-badge" title="${won?'Thắng':'Thua'}">${badge}</span>
@@ -1671,7 +2015,8 @@ function renderEnd(m){
       <div class="rv-list">${items}</div>
     </div>`;
   }).join('');
-  $('endReveal').innerHTML=html||'(không có dữ liệu)';
+  const notice = m.hasBot ? `<div class="bot-notice">🤖 Ván này có bot lấp phòng — không tính ELO</div>` : '';
+  $('endReveal').innerHTML=notice+(html||'(không có dữ liệu)');
   spawnFX(m.winner);
 }
 
@@ -1681,10 +2026,15 @@ function updateChatTabs(){
   if(!$('chatTabs')) return;
   const tabs=['main']; if(myTeam==='wolf') tabs.push('wolf'); if(myAlive===false) tabs.push('dead');
   if(!tabs.includes(chatCh)) chatCh='main';
-  $('chatTabs').innerHTML=tabs.map(c=>`<button class="btn-ghost ${c===chatCh?'':''}" style="flex:1;padding:7px;border-radius:9px;${c===chatCh?'border-color:var(--accent);color:var(--accent)':''}" onclick="setChatCh('${c}')">${CH_VI[c]}</button>`).join('');
+  $('chatTabs').innerHTML=tabs.map(c=>{
+    const active=c===chatCh;
+    const cnt=bnChatUnread[c]||0;
+    const badge=(!active && cnt>0)?`<span class="ch-badge ${c}">${cnt>99?'99+':cnt}</span>`:'';
+    return `<button class="btn-ghost" style="flex:1;padding:7px;border-radius:9px;${active?'border-color:var(--accent);color:var(--accent)':''}" onclick="setChatCh('${c}')">${CH_VI[c]}${badge}</button>`;
+  }).join('');
   renderChat();
 }
-function setChatCh(c){ chatCh=c; updateChatTabs(); }
+function setChatCh(c){ chatCh=c; bnChatUnread[c]=0; vib(10); updateChatTabs(); updateBottomNav(); }
 function renderChat(){
   const arr=chatBuf[chatCh]||[];
   $('chatMsgs').innerHTML=arr.map(m=>{ const isMc=m.from==='MC'||m.mc; const mine=m.from===((players.find(p=>p.id===myId)||{}).name);
@@ -1697,7 +2047,7 @@ function renderChat(){
   $('chatIn').disabled=!can;
   $('chatHint').textContent = chatCh==='main'&&phase==='night'?'🌙 Ban đêm không chat kênh chung':'';
 }
-function sendChat(){ const t=$('chatIn').value.trim(); if(!t||$('chatIn').disabled) return; send({t:'chat',channel:chatCh,text:t}); $('chatIn').value=''; }
+function sendChat(){ const t=$('chatIn').value.trim(); if(!t||$('chatIn').disabled) return; send({t:'chat',channel:chatCh,text:t}); $('chatIn').value=''; vib(12); }
 const EMOJIS=['😀','😂','😅','😎','😍','🤔','😱','😭','😡','😴','🤫','👍','👎','🙏','🔥','💀','🐺','🌙','☀️','❤️','💘','🗳️','✅','❌','😈','🥳'];
 function toggleEmo(){ const p=$('emoPal'); if(p.classList.contains('hidden')){ if(!p.dataset.b){ p.innerHTML=EMOJIS.map(e=>`<button type="button" style="background:none;border:none;font-size:1.4rem;cursor:pointer;padding:2px" onclick="insEmo('${e}')">${e}</button>`).join(''); p.dataset.b='1'; } p.classList.remove('hidden'); } else p.classList.add('hidden'); }
 function insEmo(e){ const i=$('chatIn'); if(i.disabled) return; i.value=(i.value+e).slice(0,300); i.focus(); }
@@ -1716,11 +2066,17 @@ function renderRoleTabs(){
     totalRoles[r.team]=(totalRoles[r.team]||0)+1; totalRoles.all++;
     const c=roleCounts[r.id]||0; if(c>0){ chosenRoles[r.team]=(chosenRoles[r.team]||0)+c; chosenRoles.all+=c; }
   }
+  // Đồng bộ với hero card: villager auto-fill (số dân được tự bù để đủ số người) cộng vào Làng + Tất cả
+  const vilAuto=Math.max(0, players.length - sumRoles());
+  if(vilAuto>0){ chosenRoles.village=(chosenRoles.village||0)+vilAuto; chosenRoles.all+=vilAuto; }
   const tabs=[['all','✨ Tất cả'],['village','🏡 Làng'],['wolf','🐺 Sói'],['third','🎭 Thứ Ba'],['neutral','⚖️ Trung Lập']];
+  const maxAll=players.length||0;
   el.innerHTML=tabs.map(([id,lbl])=>{
     const on=rcTeamFilter===id?' on':'';
     const chosen=chosenRoles[id]||0;
-    return `<button class="rc-tab${on}" onclick="setTeamFilter('${id}')" title="${chosen} ô đã chọn">${lbl}<span class="rc-tab-cnt">${chosen}</span></button>`;
+    const cntTxt = id==='all' && maxAll>0 ? `${chosen}/${maxAll}` : String(chosen);
+    const title = id==='all' ? `${chosen}/${maxAll} ô` : `${chosen} ô (đã tính Dân Làng tự bù)`;
+    return `<button class="rc-tab${on}" onclick="setTeamFilter('${id}')" title="${title}">${lbl}<span class="rc-tab-cnt">${cntTxt}</span></button>`;
   }).join('');
 }
 const noDiacritics=s=>String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/đ/g,'d').replace(/Đ/g,'D').toLowerCase();
@@ -1836,12 +2192,14 @@ function renderLobby(){
   const others=players.filter(p=>p.id!==ownerId);
   const readyN=others.filter(p=>p.ready).length;
   const allReady = others.length===0 || readyN===others.length;
-  $('lobbyTitle').textContent = isOwner ? '👑 Bạn là chủ phòng' : '✅ Trong phòng';
+  // Quick match: hiển thị banner, ẩn config/ready — server tự start
+  const inQM = isQuickMatch && Date.now() < qmDeadline;
+  $('lobbyTitle').textContent = inQM ? '⚡ Ván nhanh' : (isOwner ? '👑 Bạn là chủ phòng' : '✅ Trong phòng');
   const soloOwner = isOwner && players.length===1;
   $('lobbyStatus').textContent = soloOwner ? '' : (others.length ? `${readyN}/${others.length} thành viên đã sẵn sàng` : 'Chưa có thành viên khác vào.');
-  show('lobbyStatus', !soloOwner);
-  const lb=$('scrLobby'); if(lb) lb.classList.toggle('two-col', isOwner);
-  show('ownerSetup', isOwner); show('memberWait', !isOwner); show('readyRow', !isOwner);
+  show('lobbyStatus', !soloOwner && !inQM);
+  const lb=$('scrLobby'); if(lb) lb.classList.toggle('two-col', isOwner && !inQM);
+  show('ownerSetup', isOwner && !inQM); show('memberWait', !isOwner && !inQM); show('readyRow', !isOwner && !inQM);
   if(isOwner){
     const rolesOk = sumRoles() <= players.length;
     const wolfN = roleCatalog.filter(r=>r.team==='wolf').reduce((a,r)=>a+(roleCounts[r.id]||0),0);
