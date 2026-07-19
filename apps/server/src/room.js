@@ -285,7 +285,8 @@ export class Room {
     for (const p of this.players) {
       const i = this.idx(p.id);
       if (this.state.players[i].alive && cur.pending.has(i)) this.send(p.id, this.promptForActor(cur.stepByActor[i], options, deadline));
-      else this.send(p.id, { t: 'sleep' });
+      /* Gửi deadline vào sleep để non-actor có countdown "chờ vai khác" trong turn indicator. */
+      else this.send(p.id, { t: 'sleep', deadline, total: this.settings.actionSec });
     }
     this.timer = this.sched.set(this.settings.actionSec * 1000, () => this.waveTimeout());
   }
@@ -325,7 +326,8 @@ export class Room {
   }
   done(i) {
     this.cur.pending.delete(i);
-    this.send(this.pid(i), { t: 'sleep' });
+    /* Sleep kèm deadline để countdown "chờ vai khác" tiếp tục tick sau khi submit. */
+    this.send(this.pid(i), { t: 'sleep', deadline: this._promptDeadline, total: this.settings.actionSec });
     if (this.cur.wolfActors.has(i) && !this.cur.wolfResolved) {
       const anyPending = [...this.cur.wolfActors].some(w => this.cur.pending.has(w));
       if (!anyPending) { this.cur.wolfResolved = true; this.finishWolf(); }
@@ -585,7 +587,7 @@ export class Room {
       if (this.cur.pending.has(i)) {
         const dl = this._promptDeadline ? Math.max(now() + 5000, this._promptDeadline) : now() + this.settings.actionSec * 1000;
         this.send(id, this.promptForActor(this.cur.stepByActor[i], this.promptOptions(), dl));
-      } else this.send(id, { t: 'sleep' });
+      } else this.send(id, { t: 'sleep', deadline: this._promptDeadline, total: this.settings.actionSec });
     } else if (this.phase === 'day' && this.voteOpen && this.state.players[i].alive) {
       const dl = this._voteDeadline ? Math.max(now() + 5000, this._voteDeadline) : now() + this.settings.voteSec * 1000;
       this.send(id, { t: 'voteOpen', deadline: dl, options: this.promptOptions(), total: this.settings.voteSec });

@@ -101,6 +101,10 @@ input:-webkit-autofill,input:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 100
 .sb-turn.day-vote{color:#fca5a5;background:rgba(239,68,68,.12);box-shadow:inset 0 0 0 1px rgba(239,68,68,.28);}
 .sb-turn.day-talk{color:#fde68a;background:rgba(251,191,36,.09);}
 .sb-turn.night-wait{color:#a5b4fc;background:rgba(99,102,241,.09);}
+/* Countdown chunk trong turn indicator — pill vàng, đổi đỏ khi urgent (≤5s) */
+.sb-turn-sec{display:inline-block;margin-left:8px;padding:1px 8px;border-radius:8px;background:rgba(251,191,36,.18);color:#fbbf24;font-variant-numeric:tabular-nums;font-weight:800;font-size:.75rem;letter-spacing:.2px;}
+.sb-turn-sec.urgent{background:rgba(239,68,68,.22);color:#fca5a5;animation:sbSecPulse 1s infinite;}
+@keyframes sbSecPulse{50%{opacity:.55;}}
 /* Progress bar row */
 .sb-progress{height:6px;border-radius:4px;background:rgba(255,255,255,.06);overflow:hidden;position:relative;}
 .sb-progress-fill{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,#4ade80,#22c55e);transition:width .35s linear,background .3s;width:0%;}
@@ -1119,6 +1123,7 @@ let pendingIdToken=null;  // idToken lấy trước khi kết nối WS
 
 let ws=null, myId=null, myTeam=null, myAlive=true, players=[], phase='lobby', meta={}, myReady=false, ownerId=null, isOwner=false;
 let isQuickMatch=false, qmDeadline=0, qmTarget=20, qmTimerInt=null;
+let nightWaveDeadline=0, nightWaveTotal=0;   /* deadline chờ vai khác đêm — cho sb-turn countdown */
 let curPrompt=null, sel=[], witchSel={heal:null,poison:null}, myVote=null, voteOptions=[];
 let chatBuf={main:[],wolf:[],dead:[]}, chatCh='main';
 let roleCatalog=[], roleCounts={};
@@ -1310,9 +1315,12 @@ function handle(m){
       // Ưu tiên "total" từ server (thời lượng gốc của lượt) — resume/late-connect vẫn có progress bar đúng
       promptTotal=(typeof m.total==='number' && m.total>0) ? m.total : (m.deadline?Math.max(1,Math.ceil((m.deadline-Date.now())/1000)):0);
       show('sleepBox',false); show('promptBox',true); renderPrompt(); syncHeroBar(); sndTurn(); vib([200,90,200]); break;
-    case 'sleep': curPrompt=null; show('promptBox',false); show('sleepBox',true); syncHeroBar(); syncHeroAction(); break;
+    case 'sleep': curPrompt=null; show('promptBox',false); show('sleepBox',true);
+      /* Deadline chờ wave đêm (chờ vai khác action) — dùng cho sb-turn countdown */
+      nightWaveDeadline=m.deadline||0; nightWaveTotal=m.total||0;
+      syncHeroBar(); syncHeroAction(); break;
     case 'privateResult': show('resultBox',true); $('resultBox').textContent='🔒 '+m.text; break;
-    case 'morning': show('promptBox',false); show('sleepBox',false); show('dayBox',true); pushHist(`🌙 Đêm ${m.nightNo}`, m.lines); renderTimeline(); break;
+    case 'morning': show('promptBox',false); show('sleepBox',false); show('dayBox',true); nightWaveDeadline=0; nightWaveTotal=0; pushHist(`🌙 Đêm ${m.nightNo}`, m.lines); renderTimeline(); break;
     case 'voteOpen': renderVote(m); break;
     case 'voteTally': $('voteStatus').textContent='Phiếu: '+Object.entries(m.tally).map(([i,c])=>`${(players[i]&&players[i].name)||('#'+i)}:${c}`).join('  ·  '); break;
     case 'day': show('voteBox',false); clearCd('vote'); clearCd('day'); pushHist(`⚖️ Ngày ${meta.dayNo||''}`.trim(), m.lines); renderTimeline(); break;
@@ -1378,7 +1386,7 @@ function onState(m){
       if(!myAlive) rc.classList.add('revealed');
       else rc.classList.remove('revealed');
   }}
-  if(phase!=='night'){ show('promptBox',false); show('sleepBox',false); clearInterval(promptTimerInt); curPrompt=null; syncHeroAction(); }
+  if(phase!=='night'){ show('promptBox',false); show('sleepBox',false); clearInterval(promptTimerInt); curPrompt=null; nightWaveDeadline=0; nightWaveTotal=0; syncHeroAction(); }
   if(phase!=='day'){ show('voteBox',false); clearCd('vote'); clearCd('day'); }
   if(phase==='day') show('dayBox',true);
   else if(phase==='ended'){ // Khi kết thúc: chỉ giữ dayBox nếu có nội dung diễn biến
@@ -1532,37 +1540,48 @@ function renderStatusBar(){
   syncHeroBar();
 }
 function computeTurnLabel(){
+  /* Countdown chunk chèn vào cuối text — server gửi deadline cho night wait
+     (qua sleep) + day discussion/vote, client tick 500ms. */
+  const cd=currentCountdown();
+  const secTxt = (cd && cd.s>0) ? ` <span class="sb-turn-sec${cd.s<=5?' urgent':''}">${cd.s}s</span>` : '';
   if(!myAlive){
-    if(phase==='night') return {text:'👻 Khán giả — quan sát ban đêm', cls:''};
-    if(phase==='day')   return {text:'👻 Khán giả — không thể bỏ phiếu', cls:''};
+    if(phase==='night') return {text:'👻 Khán giả — quan sát ban đêm'+secTxt, cls:''};
+    if(phase==='day')   return {text:'👻 Khán giả — không thể bỏ phiếu'+secTxt, cls:''};
     return {text:'', cls:''};
   }
   if(phase==='night'){
     if(curPrompt){
       const label = curPrompt.mode==='witch' ? 'Phù Thủy' : stepVi(curPrompt.stepType||'');
-      return {text:`🎯 Đến lượt bạn — ${esc(label)}`, cls:'my-turn'};
+      return {text:`🎯 Đến lượt bạn — ${esc(label)}${secTxt}`, cls:'my-turn'};
     }
-    return {text:'😴 Đang chờ các vai khác…', cls:'night-wait'};
+    return {text:`😴 Đang chờ các vai khác${secTxt}`, cls:'night-wait'};
   }
   if(phase==='day'){
     const voteBoxEl=$('voteBox'); const voteOpen = voteBoxEl && !voteBoxEl.classList.contains('hidden');
     if(voteOpen){
       if(myVote){
         const voted=(voteOptions.find(o=>o.id===myVote)||{}).name;
-        return {text:`🗳 Bạn đã bỏ phiếu${voted?': '+esc(voted):''}`, cls:'day-vote'};
+        return {text:`🗳 Bạn đã bỏ phiếu${voted?': '+esc(voted):''}${secTxt}`, cls:'day-vote'};
       }
-      return {text:'🗳 Đang bỏ phiếu treo cổ — chạm để chọn', cls:'day-vote'};
+      return {text:`🗳 Đang bỏ phiếu treo cổ — chạm để chọn${secTxt}`, cls:'day-vote'};
     }
-    return {text:'💬 Cả làng đang thảo luận…', cls:'day-talk'};
+    return {text:`💬 Cả làng đang thảo luận${secTxt}`, cls:'day-talk'};
   }
   return {text:'', cls:''};
 }
 function currentCountdown(){
-  // Trả về {s, total} cho phase hiện tại: night = curPrompt; day = vote (nếu mở) hoặc day countdown.
+  // Trả về {s, total} cho phase hiện tại: night curPrompt / night wait (sleep) / day vote / day discussion.
   const now=Date.now();
-  if(phase==='night' && curPrompt && curPrompt.deadline){
-    const s=Math.max(0,Math.ceil((curPrompt.deadline-now)/1000));
-    return {s, total:promptTotal||s||1};
+  if(phase==='night'){
+    if(curPrompt && curPrompt.deadline){
+      const s=Math.max(0,Math.ceil((curPrompt.deadline-now)/1000));
+      return {s, total:promptTotal||s||1};
+    }
+    /* "Chờ vai khác" — server gửi deadline qua sleep message */
+    if(nightWaveDeadline){
+      const s=Math.max(0,Math.ceil((nightWaveDeadline-now)/1000));
+      return {s, total:nightWaveTotal||s||1};
+    }
   }
   if(phase==='day'){
     const dl = cdDeadlines.vote || cdDeadlines.day;
