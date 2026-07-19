@@ -7,6 +7,8 @@
    v0. Persistence (Redis/Postgres): TODO. */
 
 import E from '@masoi/engine';
+import { BotPlayer } from './bot.js';
+import { isBotId } from './bot-personas.js';
 
 const defaultScheduler = { set: (ms, fn) => setTimeout(fn, ms), clear: (t) => clearTimeout(t) };
 const now = () => Date.now();
@@ -15,12 +17,19 @@ const CHATS = ['main', 'wolf', 'dead'];
 export class Room {
   constructor({ id, send, engine = E, scheduler = defaultScheduler, settings = {}, onGameOver = null }) {
     this.id = id;
-    this.send = send;                 // (playerId, msgObj) => void
     this.E = engine;
     this.sched = scheduler;
     this.onGameOver = onGameOver;     // (winner, reveal, players) => void — hook cho stats
     this.settings = { actionSec: 60, discussionSec: 45, voteSec: 30, lgCaughtChance: 0, ...settings };
-    this.players = [];                // [{ id, name, connected }]  (thứ tự = chỉ số engine)
+    this.bots = new Map();            // id → BotPlayer (routing send + cleanup)
+    this._rawSend = send;
+    // Wrap send: route sang bot local nếu id thuộc bot, else gửi qua transport
+    this.send = (pid, msg) => {
+      const bot = this.bots.get(pid);
+      if (bot) return bot.send(msg);
+      return this._rawSend(pid, msg);
+    };
+    this.players = [];                // [{ id, name, connected, isBot }]  (thứ tự = chỉ số engine)
     this.phase = 'lobby';             // lobby | night | day | ended
     this.state = null;
     this.nd = null;
@@ -49,9 +58,10 @@ export class Room {
   isWolf(i) { return !!this.state && this.E.BITING_WOLF_IDS.includes(this.state.players[i].roleId); }
   publicPlayers() {
     return this.state
-      ? this.state.players.map((p, i) => ({ id: this.pid(i), name: p.name, seat: i, alive: p.alive, connected: (this.players[i] || {}).connected }))
-      : this.players.map((p, i) => ({ id: p.id, name: p.name, seat: i, alive: true, connected: p.connected, ready: !!p.ready }));
+      ? this.state.players.map((p, i) => ({ id: this.pid(i), name: p.name, seat: i, alive: p.alive, connected: (this.players[i] || {}).connected, isBot: !!(this.players[i] && this.players[i].isBot) }))
+      : this.players.map((p, i) => ({ id: p.id, name: p.name, seat: i, alive: true, connected: p.connected, ready: !!p.ready, isBot: !!p.isBot }));
   }
+  hasBot() { return this.players.some(p => p.isBot); }
   touch() { this._lastActivity = Date.now(); }
   broadcastLobby() { this.touch(); this.broadcast({ t: 'lobby', players: this.publicPlayers(), ownerId: this.ownerId }); }
   setReady(id, val) {
@@ -64,10 +74,34 @@ export class Room {
   /* ── LOBBY / KẾT NỐI ── */
   join(id, name) {
     if (this.phase !== 'lobby') return { ok: false, error: 'Ván đã bắt đầu' };
-    if (!this.players.some(p => p.id === id)) this.players.push({ id, name: name || '?', connected: true });
-    if (!this.ownerId) this.ownerId = id;      // người đầu tiên = chủ phòng
+    if (!this.players.some(p => p.id === id)) {
+      const isBot = isBotId(id);
+      this.players.push({ id, name: name || '?', connected: true, isBot, ready: isBot ? true : false });
+    }
+    if (!this.ownerId) {
+      // Ưu tiên người thật làm chủ phòng — bot không thể bấm start
+      const firstHuman = this.players.find(p => !p.isBot);
+      this.ownerId = (firstHuman || this.players[0]).id;
+    }
     this.broadcastLobby();
     return { ok: true };
+  }
+
+  /** Thêm 1 bot vào phòng (dùng cho quick-match auto-fill).
+   *  persona: { id, name } — id phải bắt đầu bằng "bot_" để hệ thống phân biệt. */
+  addBot(persona) {
+    if (this.phase !== 'lobby') return { ok: false, error: 'Ván đã bắt đầu' };
+    if (!isBotId(persona.id)) return { ok: false, error: 'Bot id phải có prefix bot_' };
+    if (this.players.some(p => p.id === persona.id)) return { ok: false, error: 'Bot đã tồn tại' };
+    const bot = new BotPlayer({ id: persona.id, name: persona.name, room: this, sched: this.sched });
+    this.bots.set(persona.id, bot);
+    return this.join(persona.id, persona.name);
+  }
+
+  /** Dọn dẹp bot khi ván kết thúc / newMatch / room bị xóa. */
+  _destroyBots() {
+    for (const bot of this.bots.values()) { try { bot.destroy(); } catch (e) {} }
+    this.bots.clear();
   }
   setConnected(id, val) {
     const i = this.idx(id); if (i < 0) return;
@@ -81,7 +115,8 @@ export class Room {
         // Chỉ chuyển nếu chủ cũ VẪN chưa quay lại
         const cur = this.players.find(p => p.id === this.ownerId);
         if (cur && !cur.connected) {
-          const next = this.players.find(p => p.connected && p.id !== this.ownerId);
+          // Ưu tiên người thật; nếu không còn ai thật thì bỏ ownerId (không giao bot)
+          const next = this.players.find(p => p.connected && !p.isBot && p.id !== this.ownerId);
           if (next) {
             this.ownerId = next.id;
             this.broadcast({ t: 'toast', message: `👑 ${next.name} trở thành chủ phòng mới (chủ cũ mất kết nối).` });
@@ -112,7 +147,8 @@ export class Room {
     // Đang chơi
     this.players[i].connected = false;
     if (this.ownerId === id) {
-      this.ownerId = (this.players.find(p => p.id !== id && p.connected) || this.players.find(p => p.id !== id) || {}).id || null;
+      // Ưu tiên người thật; bot không được làm owner
+      this.ownerId = (this.players.find(p => p.id !== id && p.connected && !p.isBot) || this.players.find(p => p.id !== id && !p.isBot) || {}).id || null;
       if (this.ownerId) {
         const newOwner = this.players.find(p => p.id === this.ownerId);
         if (newOwner) this.broadcast({ t: 'toast', message: `👑 ${newOwner.name} trở thành chủ phòng mới.` });
@@ -186,12 +222,13 @@ export class Room {
     return 1;
   }
   promptForActor(type, options, deadline) {
+    const total = this.settings.actionSec;
     if (type === 'witch')
-      return { t: 'prompt', stepType: 'witch', mode: 'witch', options, deadline, healUsed: this.state.flags.witchHealUsed, poisonUsed: this.state.flags.witchPoisonUsed };
+      return { t: 'prompt', stepType: 'witch', mode: 'witch', options, deadline, total, healUsed: this.state.flags.witchHealUsed, poisonUsed: this.state.flags.witchPoisonUsed };
     // Roles that need dead players in options
     if (type === 'gravedigger' || type === 'medium' || type === 'graverobber')
-      return { t: 'prompt', stepType: type, mode: 'pick', options: this.promptOptions(true), deadline, max: 1, deadOnly: true };
-    return { t: 'prompt', stepType: type, mode: 'pick', options, deadline, max: this.maxTargets(type) };
+      return { t: 'prompt', stepType: type, mode: 'pick', options: this.promptOptions(true), deadline, total, max: 1, deadOnly: true };
+    return { t: 'prompt', stepType: type, mode: 'pick', options, deadline, total, max: this.maxTargets(type) };
   }
   startNight() {
     this.nd = this.E.newNightData();
@@ -416,11 +453,11 @@ export class Room {
   startDay() {
     this.votes = {};
     this.voteOpen = false;
-    this.broadcast({ t: 'scene', phase: 'day', dayNo: this.state.day, deadline: now() + this.settings.discussionSec * 1000 });
+    this.broadcast({ t: 'scene', phase: 'day', dayNo: this.state.day, deadline: now() + this.settings.discussionSec * 1000, total: this.settings.discussionSec });
     this.timer = this.sched.set(this.settings.discussionSec * 1000, () => {
       this.voteOpen = true;
       this._voteDeadline = now() + this.settings.voteSec * 1000;
-      this.broadcast({ t: 'voteOpen', deadline: this._voteDeadline, options: this.promptOptions() });
+      this.broadcast({ t: 'voteOpen', deadline: this._voteDeadline, options: this.promptOptions(), total: this.settings.voteSec });
       this.timer = this.sched.set(this.settings.voteSec * 1000, () => this.closeVote());
     });
   }
@@ -447,8 +484,17 @@ export class Room {
     const voteCount = {}; Object.values(this.votes).forEach(t => { voteCount[t] = (voteCount[t] || 0) + 1; });
     const voteLines = Object.entries(voteCount).sort((a, b) => b[1] - a[1])
       .map(([ti, c]) => `${this.state.players[+ti].name}: ${c} phiếu`);
+    // Yêu cầu: ≥ 2/3 người sống bỏ phiếu cho top mới treo được. Nếu không đủ → không ai bị treo.
+    const aliveCnt = this.aliveList().length;
+    const threshold = Math.ceil(aliveCnt * 2 / 3);
+    const topCount = top != null ? (voteCount[top] || 0) : 0;
+    const enoughVotes = top != null && topCount >= threshold;
     let lines;
-    if (top != null) {
+    if (top != null && !enoughVotes) {
+      const name = this.state.players[top].name;
+      lines = [`⚖️ Không đủ 2/3 phiếu để treo cổ (cần ≥${threshold}, ${name} chỉ có ${topCount}). Không ai bị treo.`];
+      this.history.push({ type: 'day', no: this.state.day, target: null, votes: voteLines, insufficient: true, needed: threshold, topName: name, topCount });
+    } else if (top != null) {
       const name = this.state.players[top].name;
       const role = this.E.roleOf(this.state.players[top].roleId).name;
       const r = this.E.resolveHang(this.state, top);   // vẫn chạy để engine xử lý tác dụng
@@ -542,7 +588,7 @@ export class Room {
       } else this.send(id, { t: 'sleep' });
     } else if (this.phase === 'day' && this.voteOpen && this.state.players[i].alive) {
       const dl = this._voteDeadline ? Math.max(now() + 5000, this._voteDeadline) : now() + this.settings.voteSec * 1000;
-      this.send(id, { t: 'voteOpen', deadline: dl, options: this.promptOptions() });
+      this.send(id, { t: 'voteOpen', deadline: dl, options: this.promptOptions(), total: this.settings.voteSec });
     } else if (this.phase === 'ended' && this._lastGameOver) {
       /* Ván đã kết thúc — re-send để client dựng lại endBox + reveal + lịch sử chi tiết */
       this.send(id, { t: 'gameOver', ...this._lastGameOver });
@@ -557,13 +603,15 @@ export class Room {
     this.phase = 'ended';
     this.voteOpen = false;
     this.clearTimer();
-    const reveal = this.state.players.map((p) => { const r = this.E.roleOf(p.roleId); return { name: p.name, role: r.name, team: r.team, alive: p.alive }; });
+    const reveal = this.state.players.map((p, i) => { const r = this.E.roleOf(p.roleId); return { name: p.name, role: r.name, team: r.team, alive: p.alive, isBot: !!(this.players[i] && this.players[i].isBot) }; });
     /* Lưu snapshot để resume/reconnect sau ended vẫn nhận được reveal + history */
-    this._lastGameOver = { winner: win.winner, desc: win.desc, reveal, history: this.history };
+    this._lastGameOver = { winner: win.winner, desc: win.desc, reveal, history: this.history, hasBot: this.hasBot() };
     /* Broadcast state trước để client update phase='ended' → tắt timer statusbar */
     this.broadcastState();
     this.broadcast({ t: 'gameOver', ...this._lastGameOver });
     if (this.onGameOver) this.onGameOver(win.winner, reveal, this.players);
+    // Dọn timers của bot (bot entry giữ trong players[] để state.players index vẫn khớp cho resume/reveal)
+    this._destroyBots();
   }
 
   /* ── VÁN MỚI CÙNG NHÓM: giữ người chơi (đang online), xoá ván cũ, về phòng chờ ── */
@@ -576,16 +624,19 @@ export class Room {
     this.chatLog = { main: [], wolf: [], dead: [] };
     this.history = [];
     this._lastGameOver = null;
-    // Loại người đã mất kết nối — họ không thể "sẵn sàng" nên sẽ chặn start
-    const removed = this.players.filter(p => p.connected === false);
+    // Dọn bot cũ (bot của ván trước không tự chơi tiếp; nếu vẫn thiếu người, quickMatch mới sẽ tạo bot mới)
+    this._destroyBots();
+    // Loại người đã mất kết nối HOẶC là bot (bot không sang ván mới)
+    const removed = this.players.filter(p => p.connected === false || p.isBot);
     if (removed.length) {
-      this.players = this.players.filter(p => p.connected !== false);
+      this.players = this.players.filter(p => p.connected !== false && !p.isBot);
       // Reassign owner nếu chủ cũ nằm trong nhóm bị loại
       if (removed.some(p => p.id === this.ownerId)) {
-        this.ownerId = (this.players[0] && this.players[0].id) || null;
+        // Ưu tiên người thật kết nối tốt
+        const cand = this.players.find(p => p.connected) || this.players[0];
+        this.ownerId = cand ? cand.id : null;
         if (this._ownerGraceTimer) { this.sched.clear(this._ownerGraceTimer); this._ownerGraceTimer = null; this._ownerGraceForId = null; }
-        const newOwner = this.ownerId && this.players.find(p => p.id === this.ownerId);
-        if (newOwner) this.broadcast({ t: 'toast', message: `👑 ${newOwner.name} là chủ phòng mới.` });
+        if (cand) this.broadcast({ t: 'toast', message: `👑 ${cand.name} là chủ phòng mới.` });
       }
     }
     this.players.forEach(p => { p.ready = false; });

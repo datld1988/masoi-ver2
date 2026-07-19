@@ -24,6 +24,7 @@ import { dirname, join } from 'path';
 import { randomUUID } from 'crypto';
 import E from '@masoi/engine';
 import { Room } from './room.js';
+import { makeBotPersonas, isBotId } from './bot-personas.js';
 
 /* ── Firebase Admin (tùy chọn)
    Local dev : đặt FIREBASE_KEY_FILE = đường dẫn tới file JSON service account
@@ -85,6 +86,13 @@ function getRoom(code) {
     rooms.set(code, new Room({
       id: code, send: sendTo,
       onGameOver(winner, reveal, roomPlayers) {
+        // KHÔNG tính ELO nếu ván có bot (chống farm)
+        const hasBot = roomPlayers.some(p => p.isBot);
+        if (hasBot) {
+          // Toast nhẹ cho người thật
+          for (const p of roomPlayers) if (!p.isBot) sendTo(p.id, { t: 'toast', message: '🤖 Ván luyện tập có bot — không tính ELO' });
+          return;
+        }
         for (let i = 0; i < roomPlayers.length; i++) {
           const uid = roomPlayers[i].id;
           if (userDB.has(uid) && reveal[i]) recordResult(uid, winner, reveal[i].team, reveal, roomPlayers, i);
@@ -96,6 +104,71 @@ function getRoom(code) {
   return rooms.get(code);
 }
 const newId = () => (globalThis.crypto?.randomUUID ? crypto.randomUUID() : randomUUID());
+
+/* ── QUICK MATCH: 10s chờ người thật, sau đó fill bot + auto-start ── */
+const QUICK_MATCH_WAIT_MS = 10_000;
+const QUICK_MATCH_TARGET = 5;    // tổng số người chơi mỗi ván (bot + thật) — MVP giữ nhỏ
+
+/** Schedule timer 10s cho phòng quickMatch. Nếu timer đã có, không reset (chỉ broadcast waiting cho người mới). */
+function scheduleQuickMatchFill(room) {
+  if (!room._quickMatch) return;
+  if (room.phase !== 'lobby') return;
+  // Broadcast waiting cho tất cả (kể cả khi timer đã có — người mới vào cũng cần biết deadline)
+  const deadline = room._qmDeadline || (Date.now() + QUICK_MATCH_WAIT_MS);
+  room._qmDeadline = deadline;
+  for (const p of room.players) if (!p.isBot) sendTo(p.id, { t: 'quickMatchWaiting', deadline, target: QUICK_MATCH_TARGET });
+  if (room._qmTimer) return;                    // đã có timer, chờ chung
+  room._qmTimer = setTimeout(() => {
+    room._qmTimer = null;
+    room._qmDeadline = null;
+    if (room.phase !== 'lobby') return;
+    // Fill bot lên target nếu chưa đủ
+    const need = QUICK_MATCH_TARGET - room.players.length;
+    if (need > 0) {
+      const existingNames = room.players.map(p => p.name);
+      const personas = makeBotPersonas(need, existingNames);
+      for (const b of personas) room.addBot(b);
+      // Thông báo cho người thật biết bot vừa thêm vào
+      for (const p of room.players) if (!p.isBot) sendTo(p.id, { t: 'toast', message: `🤖 Đã thêm ${need} bot để đủ người` });
+    }
+    // Auto-start (kể cả khi đủ người thật) — user quickMatch expect vào là chơi ngay
+    autoStartQuickMatch(room);
+  }, QUICK_MATCH_WAIT_MS);
+}
+
+/** Vai gợi ý theo số người — tương tự `suggestRoles` client-side, chạy trên server. */
+function suggestRoleCounts(n) {
+  const counts = { villager: 0 };
+  if (n >= 4) {
+    counts.wolf = Math.max(1, Math.floor(n / 4));
+    counts.seer = 1;
+    if (n >= 6) counts.witch = 1;
+    if (n >= 7) counts.bodyguard = 1;
+    if (n >= 9) counts.hunter = 1;
+    if (n >= 11) counts.cupid = 1;
+  } else {
+    counts.wolf = 1;
+  }
+  const used = Object.values(counts).reduce((a, b) => a + b, 0);
+  counts.villager = Math.max(0, n - used);
+  if (!counts.villager) delete counts.villager;
+  return counts;
+}
+
+/** Auto-start ván quickMatch với vai gợi ý. Bỏ qua notReady check bằng cách set tất cả ready. */
+function autoStartQuickMatch(room) {
+  if (room.phase !== 'lobby') return;
+  const n = room.players.length;
+  if (n < 3) return;                    // không đủ người, cho quay lobby thường
+  // Cho tất cả người chơi ready = true (kể cả người thật) — quick-match không cần bấm ready
+  for (const p of room.players) p.ready = true;
+  const counts = suggestRoleCounts(n);
+  const rs = room.start(counts, undefined, {}, room.ownerId);
+  if (!rs.ok) {
+    // Gửi thông báo, không crash
+    for (const p of room.players) if (!p.isBot) sendTo(p.id, { t: 'toast', message: `⚠️ Không start được: ${rs.error}` });
+  }
+}
 
 /* ── Bền bỉ: snapshot phòng + hồ sơ người dùng ── */
 const DATA_DIR = join(__dirname, '..', 'data');
@@ -327,17 +400,20 @@ wss.on('connection', (ws, req) => {
       const identity = await resolveIdentity(m.name);
       if (!identity) return;
       const { pid, name } = identity;
-      // Tìm phòng public tốt nhất: có người, chưa bắt đầu, chưa có mật khẩu, chưa đầy
+      // Chỉ gộp các phòng quickMatch (không lấy phòng do người chơi tự tạo)
       let best = null;
       for (const [code, room] of rooms) {
-        if (room.phase === 'lobby' && !room.password && room.players.length > 0 && room.players.length < 12)
+        if (room.phase === 'lobby' && !room.password && room._quickMatch && room.players.length > 0 && room.players.length < 12 && !room.hasBot())
           if (!best || room.players.length > best.room.players.length) best = { code, room };
       }
       const code = best ? best.code : randomRoomCode();
       const room = best ? best.room : getRoom(code);
+      room._quickMatch = true;      // đánh dấu để lần sau gộp
       ws._room = room; ws._pid = pid; sockets.set(pid, ws);
       ws.send(JSON.stringify({ t: 'welcome', id: pid, token: pid, room: code }));
       room.join(pid, name);
+      // Kick off timer 10s cho phòng nếu chưa có
+      scheduleQuickMatchFill(room);
       scheduleSave();
       return;
     }
@@ -385,7 +461,11 @@ wss.on('connection', (ws, req) => {
         room.leave(pid);
         sockets.delete(pid);
         ws._room = null; ws._pid = null;
-        if (rooms.get(room.id) === room && room.players.length === 0) rooms.delete(room.id);
+        if (rooms.get(room.id) === room && room.players.filter(p => !p.isBot).length === 0) {
+          if (room._qmTimer) { clearTimeout(room._qmTimer); room._qmTimer = null; }
+          try { room._destroyBots && room._destroyBots(); } catch (e) {}
+          rooms.delete(room.id);
+        }
         break;
       }
       default: break;

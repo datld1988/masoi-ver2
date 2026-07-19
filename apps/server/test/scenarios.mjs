@@ -81,13 +81,38 @@ export function defineTests(t) {
     const before = room.aliveList().length; castHang(ctx, hw);
     assert.ok(!room.state.players[hw].alive); assert.equal(room.aliveList().length, before - 2);
   });
-  t('[đặc thù] Trưởng Làng: phiếu ×2 quyết định treo', () => {
-    const ctx = buildRoom({ mayor: 1, wolf: 1, villager: 4 }); const { room, sched } = ctx;
+  t('[đặc thù] Trưởng Làng: phiếu ×2 được tính trong tally', () => {
+    const ctx = buildRoom({ mayor: 1, wolf: 1, villager: 4 }); const { room } = ctx;
     toDayVote(ctx, skipNight);
     const mayor = findRole(room, 'mayor').i, vills = room.aliveList().filter(x => x.p.roleId === 'villager').map(x => x.i);
-    const X = vills[0], Yvoter = vills[1], Y = vills[2];
-    room.votes = {}; room.handleVote(room.pid(mayor), room.pid(X)); room.handleVote(room.pid(Yvoter), room.pid(Y)); sched.fireNext();
-    assert.ok(!room.state.players[X].alive && room.state.players[Y].alive);
+    const X = vills[0], Y = vills[1];
+    room.votes = {}; room.handleVote(room.pid(mayor), room.pid(X)); room.handleVote(room.pid(vills[2]), room.pid(Y));
+    const { top, tally } = E.tallyVotes(room.state, room.votes);
+    assert.equal(top, X, 'Trưởng Làng ×2 giúp X thắng tally');
+    assert.equal(tally[X], 2, 'X có 2 phiếu weighted (mayor ×2)');
+    assert.equal(tally[Y], 1, 'Y có 1 phiếu');
+  });
+  t('[đặc thù] Vote treo cổ cần ≥ 2/3 người sống', () => {
+    const ctx = buildRoom({ villager: 6, wolf: 3 }); const { room, sched } = ctx;
+    toDayVote(ctx, skipNight);
+    /* 9 sống → threshold = ceil(9*2/3) = 6. Chỉ 5 người vote 1 mục tiêu → không đủ, không ai treo. */
+    const aliveIdx = room.aliveList().map(x => x.i);
+    const target = aliveIdx[0];
+    room.votes = {};
+    for (let k = 1; k <= 5; k++) room.handleVote(room.pid(aliveIdx[k]), room.pid(target));
+    sched.fireNext();
+    assert.ok(room.state.players[target].alive, 'Không đủ 2/3 phiếu → không treo được');
+  });
+  t('[đặc thù] Vote treo cổ: đủ 2/3 thì treo', () => {
+    const ctx = buildRoom({ villager: 6, wolf: 3 }); const { room, sched } = ctx;
+    toDayVote(ctx, skipNight);
+    const aliveIdx = room.aliveList().map(x => x.i);
+    const target = aliveIdx[0];
+    room.votes = {};
+    /* 6 người vote 1 mục tiêu = đủ 6/9 ≥ 2/3 */
+    for (let k = 1; k <= 6; k++) room.handleVote(room.pid(aliveIdx[k]), room.pid(target));
+    sched.fireNext();
+    assert.ok(!room.state.players[target].alive, 'Đủ 2/3 phiếu → treo thành công');
   });
   t('[đặc thù] Kẻ Nguyền Rủa bị cắn → hoá Sói, không chết', () => {
     const ctx = buildRoom({ cursedone: 1, wolf: 1, villager: 4 }); const { room } = ctx;
