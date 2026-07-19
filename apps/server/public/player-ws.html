@@ -1010,22 +1010,25 @@ async function doQuickMatch(){
 }
 
 /* ── Quick Match countdown UI ── */
-function startQuickMatchCountdown(deadline, target){
-  qmDeadline=deadline||0; qmTarget=target||5; isQuickMatch=true;
+function startQuickMatchCountdown(deadline, target, waitSec){
+  qmDeadline=deadline||0; qmTarget=target||20; isQuickMatch=true;
+  /* waitSec từ server để dựng progress bar đúng — fallback 20s khi server cũ chưa gửi */
+  const qmTotalSec=waitSec||20;
   const banner=$('qmBanner'); if(!banner) return;
   banner.classList.remove('hidden');
+  /* Cập nhật title/target trong banner */
+  const $tt=banner.querySelector('.qm-title'); if($tt) $tt.textContent=`⚡ Đang tìm ván ${qmTarget} người`;
   if(qmTimerInt) clearInterval(qmTimerInt);
   const tick=()=>{
     const now=Date.now();
     const secs=Math.max(0, Math.ceil((qmDeadline-now)/1000));
-    const total=10;    // QUICK_MATCH_WAIT_MS/1000 — hard-code phía client
     const $s=$('qmSecs'); if($s) $s.textContent=secs;
-    const $c=document.querySelector('.qm-count'); if($c) $c.classList.toggle('low', secs<=3);
-    const $f=$('qmProgFill'); if($f){ const f=Math.max(0,Math.min(1,(total-secs)/total)); $f.style.width=(f*100).toFixed(1)+'%'; }
+    const $c=document.querySelector('.qm-count'); if($c) $c.classList.toggle('low', secs<=5);
+    const $f=$('qmProgFill'); if($f){ const f=Math.max(0,Math.min(1,(qmTotalSec-secs)/qmTotalSec)); $f.style.width=(f*100).toFixed(1)+'%'; }
     const nHumans=(players||[]).filter(p=>!p.isBot).length;
     const $sub=$('qmSub'); if($sub){
-      if(nHumans>=qmTarget) $sub.textContent=`✅ Đủ ${nHumans} người — chuẩn bị bắt đầu`;
-      else if(secs>0) $sub.textContent=`👥 ${nHumans} người thật · thêm bot nếu chưa đủ khi hết giờ`;
+      if(nHumans>=qmTarget) $sub.textContent=`✅ Đủ ${nHumans}/${qmTarget} người — bắt đầu ván ngay`;
+      else if(secs>0) $sub.textContent=`👥 ${nHumans}/${qmTarget} người thật · thêm bot lấp chỗ trống khi hết giờ`;
       else $sub.textContent='🤖 Đang thêm bot & bắt đầu ván…';
     }
     if(secs<=0){ clearInterval(qmTimerInt); qmTimerInt=null; }
@@ -1115,7 +1118,7 @@ function copyInviteLink(){
 let pendingIdToken=null;  // idToken lấy trước khi kết nối WS
 
 let ws=null, myId=null, myTeam=null, myAlive=true, players=[], phase='lobby', meta={}, myReady=false, ownerId=null, isOwner=false;
-let isQuickMatch=false, qmDeadline=0, qmTarget=5, qmTimerInt=null;
+let isQuickMatch=false, qmDeadline=0, qmTarget=20, qmTimerInt=null;
 let curPrompt=null, sel=[], witchSel={heal:null,poison:null}, myVote=null, voteOptions=[];
 let chatBuf={main:[],wolf:[],dead:[]}, chatCh='main';
 let roleCatalog=[], roleCounts={};
@@ -1293,7 +1296,7 @@ function handle(m){
     case 'toast': showToast(m.message); break;
     case 'rooms': renderRooms(m.list); break;
     case 'roles': roleCatalog=m.roles||[]; renderRoleConfig(); break;
-    case 'quickMatchWaiting': startQuickMatchCountdown(m.deadline, m.target||5); break;
+    case 'quickMatchWaiting': startQuickMatchCountdown(m.deadline, m.target||20, m.waitSec||20); break;
     case 'lobby': players=m.players; ownerId=m.ownerId; isOwner=(myId===ownerId); show('scrJoin',false); show('scrLobby',true); show('leaveBtn',true);
       { const rc=$('lobbyRoomCode'); if(rc){ const code=localStorage.getItem('masoi_ws_room')||''; rc.textContent=code?'📌 '+code:''; } }
       renderRoster('lobbyList'); if(roleCatalog.length) renderRoleConfig(); updVillager(); renderLobby(); break;

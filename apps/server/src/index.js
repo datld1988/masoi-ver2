@@ -105,53 +105,102 @@ function getRoom(code) {
 }
 const newId = () => (globalThis.crypto?.randomUUID ? crypto.randomUUID() : randomUUID());
 
-/* ── QUICK MATCH: 10s chờ người thật, sau đó fill bot + auto-start ── */
-const QUICK_MATCH_WAIT_MS = 10_000;
-const QUICK_MATCH_TARGET = 5;    // tổng số người chơi mỗi ván (bot + thật) — MVP giữ nhỏ
+/* ── QUICK MATCH: 20s chờ người thật, sau đó fill bot + auto-start.
+   Target 20 người/ván để có ván "đông vui" với nhiều vai đa dạng. Chờ 20s để
+   thực sự tụ tập được vài người thật; nếu vẫn không đủ thì bot fill nốt.
+   Auto-start ngay khi đủ target (không bắt chờ tick cuối cùng). ── */
+const QUICK_MATCH_WAIT_MS = 20_000;
+const QUICK_MATCH_TARGET = 20;
+const QUICK_MATCH_WAIT_SEC = QUICK_MATCH_WAIT_MS / 1000;
 
-/** Schedule timer 10s cho phòng quickMatch. Nếu timer đã có, không reset (chỉ broadcast waiting cho người mới). */
+/** Schedule timer cho phòng quickMatch. Nếu đủ target ngay → start liền,
+ *  không chờ tick cuối. Nếu timer đã có, không reset (chỉ broadcast waiting cho người mới). */
 function scheduleQuickMatchFill(room) {
   if (!room._quickMatch) return;
   if (room.phase !== 'lobby') return;
-  // Broadcast waiting cho tất cả (kể cả khi timer đã có — người mới vào cũng cần biết deadline)
+  const humansN = room.players.filter(p => !p.isBot).length;
+  /* Nếu đủ target người thật → skip timer, start ngay */
+  if (room.players.length >= QUICK_MATCH_TARGET) {
+    if (room._qmTimer) { clearTimeout(room._qmTimer); room._qmTimer = null; room._qmDeadline = null; }
+    for (const p of room.players) if (!p.isBot) sendTo(p.id, { t: 'toast', message: `⚡ Đủ ${QUICK_MATCH_TARGET} người — bắt đầu ván ngay!` });
+    autoStartQuickMatch(room);
+    return;
+  }
   const deadline = room._qmDeadline || (Date.now() + QUICK_MATCH_WAIT_MS);
   room._qmDeadline = deadline;
-  for (const p of room.players) if (!p.isBot) sendTo(p.id, { t: 'quickMatchWaiting', deadline, target: QUICK_MATCH_TARGET });
-  if (room._qmTimer) return;                    // đã có timer, chờ chung
+  for (const p of room.players) if (!p.isBot) sendTo(p.id, { t: 'quickMatchWaiting', deadline, target: QUICK_MATCH_TARGET, waitSec: QUICK_MATCH_WAIT_SEC, humansN });
+  if (room._qmTimer) return;
   room._qmTimer = setTimeout(() => {
     room._qmTimer = null;
     room._qmDeadline = null;
     if (room.phase !== 'lobby') return;
-    // Fill bot lên target nếu chưa đủ
     const need = QUICK_MATCH_TARGET - room.players.length;
     if (need > 0) {
       const existingNames = room.players.map(p => p.name);
       const personas = makeBotPersonas(need, existingNames);
       for (const b of personas) room.addBot(b);
-      // Thông báo cho người thật biết bot vừa thêm vào
-      for (const p of room.players) if (!p.isBot) sendTo(p.id, { t: 'toast', message: `🤖 Đã thêm ${need} bot để đủ người` });
+      for (const p of room.players) if (!p.isBot) sendTo(p.id, { t: 'toast', message: `🤖 Đã thêm ${need} bot để đủ ${QUICK_MATCH_TARGET} người` });
     }
-    // Auto-start (kể cả khi đủ người thật) — user quickMatch expect vào là chơi ngay
     autoStartQuickMatch(room);
   }, QUICK_MATCH_WAIT_MS);
 }
 
-/** Vai gợi ý theo số người — tương tự `suggestRoles` client-side, chạy trên server. */
+/** Vai gợi ý theo số người — đảm bảo tỷ lệ Sói ~25% (chuẩn Werewolf classic).
+ *  Đa dạng dần theo n: n=20 → 5 Sói (mix wolf/alpha/wolfseer/wolfcub) + 11 vai
+ *  Dân có kỹ năng + 2 vai Thứ Ba + 2 Dân Làng. Tất cả đã pass 83/83 auto-MC. */
 function suggestRoleCounts(n) {
-  const counts = { villager: 0 };
-  if (n >= 4) {
-    counts.wolf = Math.max(1, Math.floor(n / 4));
-    counts.seer = 1;
-    if (n >= 6) counts.witch = 1;
-    if (n >= 7) counts.bodyguard = 1;
-    if (n >= 9) counts.hunter = 1;
-    if (n >= 11) counts.cupid = 1;
+  const counts = {};
+  if (n < 3) return { wolf: 1, villager: Math.max(0, n - 1) };
+
+  /* ── Sói: ~25% (Math.round(n/4)) ──
+     n=5→1, n=8→2, n=10→3, n=15→4, n=20→5. Mix nhiều loại Sói khi tổng ≥2. */
+  const wolfTotal = Math.max(1, Math.round(n / 4));
+  if (wolfTotal >= 4) {
+    counts.wolf = wolfTotal - 3;
+    counts.alpha = 1;       // Sói Đầu Đàn — 1 mạng khiên
+    counts.wolfseer = 1;    // Sói Tiên Tri — soi vai người bị cắn
+    counts.wolfcub = 1;     // Sói Con — chết → đêm sau cắn 2
+  } else if (wolfTotal === 3) {
+    counts.wolf = 1;
+    counts.alpha = 1;
+    counts.wolfseer = 1;
+  } else if (wolfTotal === 2) {
+    counts.wolf = 1;
+    counts.wolfseer = 1;
   } else {
     counts.wolf = 1;
   }
+
+  /* ── Dân có kỹ năng: unlock theo n để giữ cân bằng ── */
+  counts.seer = 1;                          // luôn có Tiên Tri
+  if (n >= 6)  counts.witch = 1;            // Phù Thủy
+  if (n >= 7)  counts.bodyguard = 1;        // Bảo Vệ
+  if (n >= 9)  counts.hunter = 1;           // Thợ Săn
+  if (n >= 10) counts.cupid = 1;            // Cupid
+  if (n >= 11) counts.mayor = 1;            // Trưởng Làng (phiếu ×2)
+  if (n >= 13) counts.medium = 1;           // Nhà Linh Hồn
+  if (n >= 14) counts.detective = 1;        // Thám Tử (2 người cùng phe)
+  if (n >= 16) counts.fox = 1;              // Cáo (soi nhóm 3)
+  if (n >= 17) counts.priest = 1;           // Linh Mục (nước thánh)
+  if (n >= 18) counts.graverobber = 1;      // Trộm Mộ (kế thừa vai)
+
+  /* ── Thứ Ba: chỉ khi đông người, thêm gia vị ── */
+  if (n >= 15) counts.prince = 1;           // Hoàng Tử — miễn treo lần đầu
+  if (n >= 18) counts.joker = 1;            // Kẻ Điên — bị treo → thắng phe Thứ Ba
+
+  /* ── Dân Làng lấp phần còn lại (createGame yêu cầu tổng counts == n) ── */
   const used = Object.values(counts).reduce((a, b) => a + b, 0);
-  counts.villager = Math.max(0, n - used);
-  if (!counts.villager) delete counts.villager;
+  const vil = n - used;
+  if (vil > 0) counts.villager = vil;
+  else if (vil < 0) {
+    /* Trường hợp hiếm: n nhỏ nhưng power roles vượt n → cắt bớt từ cuối */
+    const order = ['graverobber', 'priest', 'fox', 'detective', 'medium', 'mayor', 'cupid', 'joker', 'prince'];
+    let extra = -vil;
+    for (const k of order) {
+      if (extra <= 0) break;
+      if (counts[k]) { delete counts[k]; extra--; }
+    }
+  }
   return counts;
 }
 
