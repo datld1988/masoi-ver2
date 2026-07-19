@@ -242,7 +242,7 @@ Commit: `0005dfe` server · `9a7a790` UI · `751fde0` docs. Test: 83/83 auto-MC 
 ### Bot AI (`bot.js` + `bot-personas.js` + `bot-chat.js`)
 
 - **Kiến trúc**: `Room` wrap `send(pid,msg)` — id có prefix `bot_` → route sang `BotPlayer.send()` local, không đi qua transport. `addBot(persona)` / `hasBot()` cho quick-match auto-fill. Ưu tiên người thật làm owner; bot **không thể** làm chủ phòng.
-- **BotPlayer**: dùng scheduler của Room (test tick được). Delay giả người: 2-8s action, 4-15s vote, 3-25s chat. `botNightAction()` sinh action HỢP LỆ theo `stepType`; bot Sói ưu tiên vote Dân, bot Dân vote random. Chat template có `${target}`, reply keyword khi bị nhắc tên.
+- **BotPlayer**: dùng scheduler của Room (test tick được). Delay giả người: 2-8s action, 4-15s vote, 3-25s chat. `botNightAction()` sinh action HỢP LỆ theo `stepType`; bot Sói ưu tiên vote Dân, bot Dân vote random. Chat template có `${target}`, reply keyword khi bị nhắc tên. **Nâng cấp beliefs**: xem section "Bot v2 khôn hơn" dưới.
 - **Persona pool**: 60 tên VN, id `bot_<time36>_<seq>`. `makeBotPersonas(n, existingNames)` tránh trùng tên người thật.
 - **Cleanup**: `_destroyBots()` gọi trong `gameOver()` (chỉ dọn timers, entry giữ trong `players[]` để state index khớp resume/reveal) + `newMatch()` (dọn hẳn — bot không sang ván mới). Ván mới cần quickMatch mới tạo bot mới.
 
@@ -323,6 +323,45 @@ Commit: `d3a0e1e`.
 - **Auto reconnect KHÔNG chạy trong onclose** — tránh loop khi server chết hoàn toàn. User vẫn có thể tap tab / mất mạng lại có mạng để trigger.
 - **`_reconnectAt` rate limit 2s** — nếu server phản hồi lỗi ngay (Phiên không còn tồn tại) và xoá token, lần retry tiếp theo sẽ tự return early do `!t||!r`.
 - **connect('resume')** overwrite `ws` reference — ws cũ (nếu còn) sẽ bị GC. Onclose cũ chỉ set text "Mất kết nối" — không loop.
+
+## Bot v2 khôn hơn — beliefs + chat phản ứng + reveal grayscale (2026-07-19)
+
+Commit: `756357d`.
+
+### Beliefs & memory
+- `BotPlayer` thêm: `beliefs: Map<pid, {wolf, confidence, reason}>` + `seerSeen: Set` (bot Tiên Tri, không soi lại) + `lastMorning/lastDay/lastVoteTally` (để chat phản ứng + bandwagon vote).
+- **Seed từ mates**: `_seedFromMates()` chỉ set mates=wolf khi `roleTeam==='wolf'` — bot Cupid mates KHÔNG mark (không hẳn wolf).
+- **Parse privateResult** (`parsePrivateResult`): regex 7 pattern signal mạnh (confidence 1.0) — seer 🔮 Soi X:🔴/🔵 · medium 🕯️ · wolfseer 🔮 Sói Tiên Tri (🔴/🔵) · gravedigger ⚰️. Bỏ sorcerer/detective/fox (signal yếu hoặc phức tạp).
+
+### Night actions (dùng beliefs)
+- `wolf`: KHÔNG cắn mate/deserter/wolf khác/người biết là wolf. **Ưu tiên người chưa có belief** (giả định là vai đặc biệt bot chưa lộ).
+- `seer`: không soi lại người trong `seerSeen`; add vào set sau chọn.
+- `witch`: biết wolf (belief ≥.9) → poison với 75% (còn 25% để không quá cheat); fallback 15% random poison khi chưa biết wolf.
+- `bodyguard`: ưu tiên bảo vệ người biết là Dân.
+- `hunter/serialkiller/nighthunter/assassin`: bot village → giết wolf đã biết; bot wolf → random.
+- Vai đêm Sói-team khác (poisonwolf/hypnowolf/bigbadwolf/…): né mate.
+
+### Vote thông minh
+- Bot Dân: biết wolf → vote wolf đó. Fallback bandwagon theo `lastVoteTally`.
+- Bot Sói: không vote mate; ưu tiên vote non-wolf theo state.
+
+### Chat phản ứng theo diễn biến
+- Trên `morning` (55%): "Đêm yên bình" (0 chết) / "RIP tên" (1 chết) / "Sói ăn mạnh" (2+).
+- Trên `day` (40%): "Không treo được ai" (insufficient) / "Treo trúng chưa?" (hang thành công).
+- Trên `voteOpen`: nếu bot Dân biết wolf → ưu tiên nhắc tên đó trong ACCUSE/VOTE_OPEN template.
+- Trên `voteTally`: lưu `lastVoteTally` để bandwagon.
+
+### Reveal avatar phân biệt bot
+- `.rv-av[data-bot="1"]`: `filter:grayscale(.55) brightness(.9)` + border dashed tím + inset shadow tím nhạt.
+- `.rv-item.rv-isbot`: bg tint tím nhạt.
+- Badge "🤖 Bot" rõ ràng thay chỉ 🤖.
+
+### Gotchas Bot v2
+- **Belief chỉ dùng cho decision, không cho public chat**: bot không "khai vai" trong chat main (privacy — không tự tay xì gian). Chỉ dùng để nhắm target khi vote/action.
+- **`seerSeen` không reset qua ván mới**: `newMatch` destroy bot cũ + tạo bot mới nếu quickMatch. Không cần reset thủ công.
+- **`parsePrivateResult` regex phụ thuộc chuỗi tiếng Việt** ở `room.js:310-322`. Nếu đổi format text privateResult trên server, phải cập nhật regex bot.
+- **`lastVoteTally` là object `{idx: count}`** (server gửi trong `voteTally.tally`) — key là số (index). Cần chuyển qua `pid` khi bandwagon: `room.pid(+idxStr)`.
+- **Bot Sói KHÔNG được set mình là wolf trong beliefs** — server đã biết qua state; nếu set thì logic `knownWolves()` sẽ include chính mình vào target list poison/kill.
 
 ---
 
