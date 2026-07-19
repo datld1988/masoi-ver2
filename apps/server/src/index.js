@@ -277,7 +277,22 @@ const STATIC = {
   '/play.html': 'play.html',
   '/player-ws.html': 'player-ws.html',
   '/role-art.js': 'role-art.js',
+  '/manifest.webmanifest': 'manifest.webmanifest',
+  '/icon.svg': 'icon.svg',
+  '/icon-maskable.svg': 'icon-maskable.svg',
+  '/sw.js': 'sw.js',
 };
+const CT_MAP = {
+  '.js': 'application/javascript',
+  '.svg': 'image/svg+xml',
+  '.webmanifest': 'application/manifest+json',
+  '.json': 'application/json',
+  '.html': 'text/html',
+};
+function ctFor(name) {
+  const dot = name.lastIndexOf('.');
+  return (dot >= 0 && CT_MAP[name.slice(dot)]) || 'text/html';
+}
 const ADMIN_KEY = process.env.ADMIN_KEY || '';
 
 const httpServer = createServer(async (req, res) => {
@@ -289,8 +304,12 @@ const httpServer = createServer(async (req, res) => {
   if (name) {
     try {
       const data = await readFile(join(__dirname, '..', 'public', name));
-      const ct = name.endsWith('.js') ? 'application/javascript' : 'text/html';
-      res.writeHead(200, { 'Content-Type': ct + '; charset=utf-8', 'Cache-Control': 'no-store' });
+      const ct = ctFor(name);
+      /* sw.js phải no-store để user luôn nhận SW mới nhất. Icon+manifest cache ngắn ngày. */
+      const cache = name === 'sw.js' ? 'no-store'
+        : (name.endsWith('.svg') || name.endsWith('.webmanifest')) ? 'public, max-age=86400'
+        : 'no-store';
+      res.writeHead(200, { 'Content-Type': ct + '; charset=utf-8', 'Cache-Control': cache });
       res.end(data);
     } catch { res.writeHead(404); res.end(name + ' không tìm thấy'); }
     return;

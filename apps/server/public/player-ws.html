@@ -4,6 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#0f0a1e">
+<meta name="description" content="Ma Sói online — 65 vai, auto-MC, chơi cùng bạn bè trên mọi thiết bị.">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" type="image/svg+xml" href="/icon.svg">
+<link rel="apple-touch-icon" href="/icon.svg">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Ma Sói">
+<meta name="mobile-web-app-capable" content="yes">
 <title>🐺 Ma Sói – Người Chơi (server)</title>
 <style>
 :root{
@@ -1137,6 +1145,33 @@ function connect(mode){
   ws.onmessage=e=>handle(JSON.parse(e.data));
 }
 function send(o){ if(ws&&ws.readyState===1) ws.send(JSON.stringify(o)); }
+
+/* ── Auto reconnect WS khi app quay lại foreground / lấy lại mạng ──
+   Chỉ chạy khi đã có phiên cũ (token+room trong localStorage) — không thì respect user
+   đang ở màn auth/join, không phiền. Debounce 2s để không spam server. */
+let _reconnectAt=0, _reconnectT=null;
+function tryAutoReconnect(reason){
+  const now=Date.now(); if(now-_reconnectAt<2000) return;
+  const t=localStorage.getItem('masoi_ws_token'), r=localStorage.getItem('masoi_ws_room');
+  if(!t||!r) return;
+  if(typeof navigator.onLine==='boolean' && !navigator.onLine) return;
+  const alive = ws && (ws.readyState===WebSocket.OPEN || ws.readyState===WebSocket.CONNECTING);
+  if(alive) return;
+  _reconnectAt=now;
+  try{ showToast&&showToast('🔄 Đang kết nối lại…'); }catch(e){}
+  if($('inRoom')) $('inRoom').value=r;
+  if($('inName')) $('inName').value=localStorage.getItem('masoi_ws_name')||'';
+  connect('resume');
+}
+function _scheduleAutoReconnect(reason){ clearTimeout(_reconnectT); _reconnectT=setTimeout(()=>tryAutoReconnect(reason),300); }
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') _scheduleAutoReconnect('visible'); });
+window.addEventListener('online',()=>_scheduleAutoReconnect('online'));
+window.addEventListener('focus',()=>_scheduleAutoReconnect('focus'));
+
+/* ── PWA Service Worker (chỉ để trigger install prompt; KHÔNG cache tài nguyên game) ── */
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>{ navigator.serviceWorker.register('/sw.js').catch(()=>{}); });
+}
 async function doJoin(){ const r=$('inRoom').value.trim(); if(!r){$('joinErr').textContent='Nhập tên phòng!';return;} $('joinErr').textContent=''; pendingIdToken=await getIdToken(); connect('join'); }
 async function doCreate(){ const r=$('inRoom').value.trim(); if(!r){$('joinErr').textContent='Nhập tên phòng!';return;} $('joinErr').textContent=''; pendingIdToken=await getIdToken(); connect('create'); }
 function listRooms(){ if(ws&&ws.readyState===1) send({t:'listRooms'}); else connect('list'); }

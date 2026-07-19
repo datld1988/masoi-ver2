@@ -1,0 +1,35 @@
+{
+  "name": "Ma Sói Online",
+  "short_name": "Ma Sói",
+  "description": "Game Ma Sói online — 65 vai, auto-MC, chơi cùng bạn bè trên mọi thiết bị.",
+  "start_url": "/player-ws.html",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f0a1e",
+  "theme_color": "#0f0a1e",
+  "lang": "vi",
+  "categories": ["games", "social"],
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Ván nhanh",
+      "short_name": "Ván nhanh",
+      "description": "Vào ván với người chơi bất kỳ",
+      "url": "/player-ws.html?qm=1"
+    }
+  ]
+}

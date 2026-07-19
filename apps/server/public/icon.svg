@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Ma Sói">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="40%" r="65%">
+      <stop offset="0%" stop-color="#3b1f6b"/>
+      <stop offset="60%" stop-color="#1a1230"/>
+      <stop offset="100%" stop-color="#0f0a1e"/>
+    </radialGradient>
+    <linearGradient id="wolf" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#e9e4ff"/>
+      <stop offset="100%" stop-color="#a892d8"/>
+    </linearGradient>
+    <radialGradient id="moon" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#fff4cc"/>
+      <stop offset="60%" stop-color="#f5d478"/>
+      <stop offset="100%" stop-color="#c99a3b"/>
+    </radialGradient>
+  </defs>
+  <rect width="512" height="512" rx="96" fill="url(#bg)"/>
+  <circle cx="380" cy="132" r="46" fill="url(#moon)" opacity="0.95"/>
+  <circle cx="380" cy="132" r="72" fill="#f5d478" opacity="0.12"/>
+  <g transform="translate(256 300)" fill="url(#wolf)">
+    <path d="M -140 -60 L -110 -140 L -60 -80 L 60 -80 L 110 -140 L 140 -60 L 130 40 C 120 100 80 140 0 150 C -80 140 -120 100 -130 40 Z"/>
+    <path d="M -60 -20 L -40 -20 L -50 10 Z" fill="#f5d478"/>
+    <path d="M 60 -20 L 40 -20 L 50 10 Z" fill="#f5d478"/>
+    <path d="M -10 30 L 10 30 L 0 55 Z" fill="#0f0a1e"/>
+    <circle cx="-50" cy="-5" r="9" fill="#0f0a1e"/>
+    <circle cx="50" cy="-5" r="9" fill="#0f0a1e"/>
+  </g>
+</svg>
