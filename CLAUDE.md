@@ -181,6 +181,61 @@ Toàn bộ ở `apps/server/public/player-ws.html` (client-only, không cần re
 - **`text-wrap:balance`** trong `.solo-hint` hỗ trợ Chrome/Safari mới; text đã rút ngắn để 1 dòng cho browser cũ.
 - **Server đã bỏ filter `r.id!=='villager'`** khỏi `renderRoleTabs`/`renderRoleConfig` — vẫn giữ trong `updVillager` vì tính riêng `chosenVil` + `vilAuto`.
 
+## UX/UI Mobile refactor + Bottom Nav + bug fixes (2026-07-18)
+
+Bối cảnh: đối chiếu `improve/Danh_gia_UX_UI_Game_Ma_Soi_Mobile_Web_App.md` với code hiện tại. Đã làm gói **Phase A (quick wins)** + **B1 (Bottom Nav)** trong `player-ws.html` + fix vài bug server. B2/B3/C/D còn để hôm khác.
+
+### Đã làm — client (`player-ws.html`)
+
+- **Design tokens** (`:root`): `--gap-xs/sm/md/lg` (4/8/12/20), `--primary/--danger/--success/--info` (alias giữ `--accent/--red/--green` để không phá code cũ), `--touch:44px` (Apple HIG).
+- **Touch targets ≥44px** trên `@media (max-width:640px)`: chat send/emoji/input, prompt confirm/skip, `.tava-skip-link`, `.ptile-report`, chat tab, `.hdr-btn` (34→40px), `.rcStep` (34→38px). `#chatIn` thêm `font-size:16px` chống iOS auto-zoom.
+- **Roster in-game rõ hơn**: grid min 100→108px, `.ptile-dead-ov` 1.8→2.4rem + gạch chéo đỏ chéo tile chết, badge "BẠN" gradient trên `.ptile.me::before`.
+- **Density mobile**: `.card` padding 14→12px, `main` gap 12→8px, `.sleep` padding gọn, title trong card gọn.
+- **Solo hero mở rộng** cho N người (không chỉ solo): `if(!inGame && isOwner)` — big tile chủ phòng ở trên, others làm small tile 84px với status pill (`.solo-slot-status.ready/waiting/offline`), fill tối thiểu 3 slot bằng placeholder dashed. Hint link mời chỉ hiện khi `others<2`.
+- **Owner tag ở grid thường** (view của non-owner in-lobby): 👑 `.ptile-crown` wiggle + viền vàng `.ptile.owner` + badge "👑 Chủ phòng" `.ptile-badge.owner`. Không hiện in-game để tránh nhiễu.
+
+### Bottom Nav — B1
+
+- `<nav id="bottomNav">` fixed bottom, safe-area, ẩn desktop `@media (min-width:1024px)`.
+- **3 tab contextual** đổi theo phase + trạng thái sống/chết:
+
+| Trạng thái | Tab 1 | Tab 2 | Tab 3 |
+|---|---|---|---|
+| 🌙 Đêm — sống | 🎭 Vai | 💬 Chat | 👥 Người chơi |
+| 🌙 Đêm — chết (spec) | 👻 Khán giả | 💬 Chat âm phủ | 👥 Người chơi |
+| ☀️ Ngày — sống | 🗳 Bỏ phiếu | 💬 Chat | 👥 Người chơi |
+| ☀️ Ngày — chết (spec) | 👻 Khán giả | 💬 Chat âm phủ | 👥 Người chơi |
+| 🏁 Ended | 🏆 Kết quả & Reveal | 📜 Lịch sử | — (bỏ, endBox đã có reveal theo phe) |
+
+- CSS filter: `body.bn-active.bn-{main|chat|players} + bn-{night|day|ended} + bn-spec` — mỗi section trong `#scrGame` hiện theo class. Tôn trọng `.hidden` cũ (per-element toggle vẫn work).
+- Spec HUD chỉ hiện ở tab Main khi `bn-spec` (`body.bn-active.bn-main #scrGame > .spec-hud`). Vai role card ẩn khi spec (đã lộ sẵn).
+- Badge dot đỏ trên tab Chat khi có tin mới + không ở tab chat (`bnChatUnread`).
+- `updateBottomNav()` gọi trong `renderStatusBar()` (mỗi state update) + trong `case 'chatMsg'`. Cleanup class khi về lobby.
+
+### Bug fixes trong đợt này
+
+- **Owner F5 mất ownership** (`room.js:69-96`): `setConnected` không transfer ngay khi owner disconnect — grace timer 60s (`OWNER_GRACE_MS`, `_ownerGraceTimer`, `_ownerGraceForId`). Reconnect trong 60s → hủy transfer. `resume()` cũng hủy timer.
+- **`newMatch()` không loại người mất kết nối** → chặn start vì họ ready=false mãi (`room.js:540-570`): prune `connected===false`, reassign owner nếu bị prune, broadcast toast tên đã loại.
+- **Resume ván ended không có reveal + lịch sử chi tiết** (`room.js:530-540, 519+`): `gameOver()` lưu `_lastGameOver = {winner,desc,reveal,history}`, `resume()` re-send khi `phase==='ended'`. `newMatch()` reset `_lastGameOver=null`.
+- **Statusbar hiện "⏱ 2s" + phase cũ khi ended** (`room.js:gameOver` + `player-ws.html:renderEnd`): server thêm `broadcastState()` **TRƯỚC** broadcast gameOver để client sync phase. Client `renderEnd` clear `promptTimerInt`/`clearCd('vote'/'day')` + set `phase='ended'; renderStatusBar()` fallback.
+- **Đã chết vẫn vote treo cổ được từ UI** (server đã chặn từ trước): `!myAlive` → vote grid class `.tava.dead-view` (cursor not-allowed + saturate .6), không gắn onclick. `castVote` early-return + toast "👻 Đã chết không thể bỏ phiếu".
+
+### Chưa làm — phase tiếp
+
+- **B2**: Hero mở rộng statusBar (turn indicator "Đến lượt X", progress bar timer thay vì số).
+- **B3**: Role card compact/expand (mặc định chip 1 dòng, tap để mở full 3D flip).
+- **Phase C**: animation chuyển ngày/đêm, haptics (`navigator.vibrate` + Capacitor `Haptics`) khi tới lượt/vote/chết, push notification khi background, gesture vuốt chuyển tab.
+- **Phase D**: PWA `manifest.json` + adaptive icon, ARIA labels đầy đủ, contrast audit (tím trên nền tối ≥4.5:1), WS reconnect khi app resume từ background, Capacitor wire-up trong `masoi-android/`.
+
+### Gotchas mới
+
+- **`.hidden{display:none!important}` là "master switch"**: mọi rule display khác đều thua. Dùng nó làm layer 1 (per-element toggle), Bottom Nav CSS làm layer 2 (per-tab category) — không xung đột.
+- **`renderStatusBar` là hook chính**: mọi bottom nav/tab update phải gọi ở đây (fire mỗi state update). Nếu tạo màn mới trong game, nhớ hook `updateBottomNav()`.
+- **`gameOver` KHÔNG tự broadcastState** trước đây — đã fix. Nếu thêm terminal states khác (vd `paused`) → nhớ broadcastState trước gửi terminal message, không client sẽ có phase stale.
+- **Grace timer & unread state**: `_ownerGraceTimer` (server) + `bnChatUnread` (client) đều cần cleanup đúng lúc (lobby transition / newMatch / disconnect final). Đừng quên.
+- **Tab count có thể ≠ 3**: Ended chỉ 2 tab. Nếu thêm phase mới, chỉnh `updateBottomNav` **và** auto-switch nếu user đang ở tab bị bỏ (đã có pattern: `if(body.classList.contains('bn-players')){ ... bnTab='main' }`).
+- **CSS bottom nav filter**: rules đều gate trong `@media (max-width:1023px)` — desktop 2-cột không bị ảnh hưởng dù JS vẫn add `bn-active` class.
+
 ## Phase 3 — Việc tiếp theo (bắt buộc để lên store)
 
 1. **Kiểm duyệt chat**: lọc từ ngữ tục/thô (badword list hoặc AI moderation), block user
