@@ -248,10 +248,18 @@ Commit: `0005dfe` server · `9a7a790` UI · `751fde0` docs. Test: 83/83 auto-MC 
 
 ### Quick Match auto-fill (`index.js`)
 
-- Chỉ gộp phòng đã đánh dấu `_quickMatch` (không gộp phòng do người tự tạo). Cấu hình: `QUICK_MATCH_WAIT_MS=10s`, `QUICK_MATCH_TARGET=5`.
-- Người vào → broadcast `quickMatchWaiting {deadline,target}` cho tất cả người thật (kể cả người mới vào giữa chừng). Timer hết → fill bot lên target, `suggestRoleCounts(n)`, auto-start (bỏ qua ready check bằng cách set `ready=true` cho tất cả).
+- Chỉ gộp phòng đã đánh dấu `_quickMatch` (không gộp phòng do người tự tạo). Cấu hình: `QUICK_MATCH_WAIT_MS=20s`, `QUICK_MATCH_TARGET=20` (nâng từ 5 lên 20 để có ván "đông vui" đa vai — commit `f7c90d3`).
+- Người vào → broadcast `quickMatchWaiting {deadline,target,waitSec,humansN}` cho tất cả người thật (kể cả người mới vào giữa chừng). Timer hết → fill bot lên target, `suggestRoleCounts(n)`, auto-start (bỏ qua ready check bằng cách set `ready=true` cho tất cả).
+- **Auto-start khi đủ target trước tick cuối**: nếu 20 người thật vào trước khi hết 20s → cancel timer, start ngay + toast "⚡ Đủ 20 người — bắt đầu ván ngay!".
 - **ELO**: `onGameOver` bỏ qua ELO nếu `roomPlayers.some(p=>p.isBot)` — chống farm; toast "🤖 Ván luyện tập có bot — không tính ELO".
-- Client `#qmBanner` countdown 10s + progress + sub message ("👥 N người thật · thêm bot nếu chưa đủ khi hết giờ" / "✅ Đủ N — chuẩn bị bắt đầu" / "🤖 Đang thêm bot & bắt đầu ván"). Ẩn config/ready khi trong quickMatch.
+- Client `#qmBanner` countdown 20s + progress + sub message ("👥 N/20 người thật · thêm bot lấp chỗ trống" / "✅ Đủ N/20 người — bắt đầu ván ngay" / "🤖 Đang thêm bot & bắt đầu ván"). Ẩn config/ready khi trong quickMatch. Banner title dynamic theo target.
+- **`suggestRoleCounts(n)`** — đảm bảo tỷ lệ Sói ~25% + unlock 11 vai power theo n:
+  - Sói: `Math.max(1, Math.round(n/4))`. Đa dạng theo tổng: 2→wolf+wolfseer; 3→+alpha; 4+→+wolfcub.
+  - Village: seer (any) · witch (≥6) · bodyguard (≥7) · hunter (≥9) · cupid (≥10) · mayor (≥11) · medium (≥13) · detective (≥14) · fox (≥16) · priest (≥17) · graverobber (≥18).
+  - Thứ Ba khi đông: prince (≥15) + joker (≥18).
+  - villager fill nốt — tổng luôn = n (createGame yêu cầu).
+  - Với n=20: **5 sói (25%) + 11 vai power + 2 thứ ba + 2 dân**.
+- **Test smoke** (`_check_suggest.mjs` + `_bot20_smoke.mjs`): tất cả n từ 3-20 tổng khớp + sói 20-33%; 5/5 ván 20-player kết thúc, winner mix wolf/third (village AI chưa mạnh với setup lớn).
 
 ### Vote treo cổ ≥ 2/3 người sống
 
