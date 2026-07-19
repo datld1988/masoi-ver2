@@ -271,6 +271,8 @@ Commit: `0005dfe` server · `9a7a790` UI · `751fde0` docs. Test: 83/83 auto-MC 
 
 **B2 — Statusbar hero (3 hàng dọc)**: chip row (phase/timer/alive/room/dead) + `sb-turn` (turn indicator: 🎯 my-turn pulse vàng · 😴 night-wait · 💬 day-talk · 🗳 day-vote · 👻 spec) + `sb-progress` (green → yellow warn≤50% → red crit≤25% pulse). `syncHeroBar()` 500ms, đọc `currentCountdown()` cho cả night (curPrompt) lẫn day (vote/discussion). Server gửi kèm `total` để late-connect/resume dựng bar chuẩn.
 
+**Countdown Ns trong turn indicator** (commit `f9affc9`): text turn append `<span class="sb-turn-sec">Ns</span>` để user thấy giây rõ ràng (trước chỉ có chip statusbar ở góc). Server room.js:sleep gửi `{deadline, total}` (3 chỗ: `startWave` cho non-actor, `done()` sau khi submit, `resume()`). Client `nightWaveDeadline/Total` set từ case `'sleep'`, `currentCountdown()` fallback dùng khi không có `curPrompt`. Pill vàng nền, `.urgent` (≤5s) đỏ + pulse. Cleanup khi `phase!=='night'` + `case 'morning'`.
+
 **B3 — Role card compact/modal**: mặc định `.g-role.compact` → chip 1 dòng (icon + tên + mates + team + ›). Tap chip mở `#roleModal` full-screen (art + icon + team + desc + mates). Nút `⬍` toggle, lưu `localStorage.masoi_role_compact`. Esc đóng.
 
 **Phase C (haptics)**: `vib(pattern)` helper wrap `navigator.vibrate` + `localStorage.masoi_haptic`. Rung: tap target (12-18ms), submit (35/25/35), skip (25), vote (30/25/30), open modal (20), setBnTab (15), chat send (12), death (250/80/250/80/500), toast lỗi (25/40/25).
