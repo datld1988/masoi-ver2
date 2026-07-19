@@ -256,7 +256,14 @@ function saveRooms() {
   try {
     if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
     const all = {};
-    for (const [code, room] of rooms) if (room.phase !== 'ended') all[code] = room.serialize();
+    for (const [code, room] of rooms) {
+      if (room.phase === 'ended') continue;
+      /* Bỏ qua ván có bot: BotPlayer instances không serialize được, restore sẽ
+         khiến bot entry trở thành "user disconnected mãi" → wave stuck. Ván bot
+         không tính ELO nên mất khi restart là chấp nhận được. */
+      if (room.hasBot()) continue;
+      all[code] = room.serialize();
+    }
     writeFileSync(SNAP, JSON.stringify(all));
   } catch (e) { console.error('Lưu snapshot lỗi:', e.message); }
 }

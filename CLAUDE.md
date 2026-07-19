@@ -281,6 +281,7 @@ Commit: `0005dfe` server · `9a7a790` UI · `751fde0` docs. Test: 83/83 auto-MC 
 
 - **Bot id prefix**: `bot_` bắt buộc — `isBotId()` là source of truth để `Room.send()` route local. Đừng đặt id người thật bắt đầu bằng `bot_`.
 - **Bot vẫn nằm trong `players[]` sau gameOver**: chỉ destroy timers. Cần thiết để `state.players[i].name` + `reveal[i]` khớp index. `newMatch` mới thật sự loại bỏ.
+- **Không snapshot ván có bot** (`index.js:saveRooms`): `BotPlayer` instances không serialize; restore sẽ khiến bot entry trở thành "user disconnected mãi" → wave stuck 40s/đêm chờ timeout. Ván bot không tính ELO nên mất khi server restart là chấp nhận được. Người thật vào lại sẽ nhận "Phiên không còn tồn tại" → về scrJoin → chọn Quick Match lại.
 - **`_quickMatch` là flag "sticky"**: một khi phòng được đánh dấu, các lần gộp sau vẫn ưu tiên nó. Người tự tạo phòng KHÔNG có flag này → không bị nhét bot.
 - **Vote 2/3 dựa trên `aliveCnt` TẠI THỜI ĐIỂM closeVote**: nếu ai chết trong day (rare), threshold có thể lệch. Auto-MC test đủ 6/9 case biên.
 - **`sb-turn` + `sb-progress` DOM chỉ có khi phase=night|day**: đừng `getElementById` blindly ngoài `syncHeroBar` — nó sẽ null ở lobby/ended.
