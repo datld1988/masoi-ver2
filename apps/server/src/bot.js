@@ -227,7 +227,26 @@ export class BotPlayer {
     this.lastMorning = null;        // { nightNo, deaths: [names] }
     this.lastDay = null;            // { dayNo, hangedName, hangedRole? }
     this.lastVoteTally = null;      // { idx: count } — bandwagon
+    /* ── Persona per-bot để tránh "đồng phục tempo" (dễ lộ toàn bot) ──
+       chatty  0.05..0.95 — xác suất chat mỗi cơ hội. 20% bot là "lurker"
+                          (chatty<0.15) hầu như không nói.
+       patience 0.4..2.2  — multiplier cho mọi delay. Thấp = phản xạ nhanh,
+                          cao = chờ gần hết deadline.
+       style   4 loại — dùng để chọn pool câu (concise/friendly/cautious/aggressive). */
+    const r = Math.random();
+    const chatty = r < 0.2 ? 0.05 + Math.random() * 0.1      // 20% lurker
+                 : r < 0.6 ? 0.35 + Math.random() * 0.25     // 40% trung bình
+                 : 0.65 + Math.random() * 0.3;               // 40% nói nhiều
+    this.persona = {
+      chatty,
+      patience: 0.4 + Math.random() * 1.8,
+      style: ['concise', 'friendly', 'cautious', 'aggressive'][Math.floor(Math.random() * 4)],
+    };
   }
+
+  /** Scale delay theo persona.patience — mỗi bot có cadence khác nhau. */
+  _pd(ms) { return Math.max(400, Math.round(ms * this.persona.patience)); }
+  _pdRange(lo, hi) { return randInt(this._pd(lo), this._pd(hi)); }
 
   destroy() {
     this._destroyed = true;
@@ -328,7 +347,9 @@ export class BotPlayer {
 
   /* ── ĐÊM ── */
   _planNightAction(prompt) {
-    const delay = randInt(2000, 8000);
+    /* Spread 1.5-9s * patience: bot patience 0.4 → ~0.6-3.6s (nhanh),
+       patience 2.2 → ~3.3-20s (chờ sát deadline). Không đồng phục. */
+    const delay = this._pdRange(1500, 9000);
     this._schedule(delay, () => {
       if (this.room.phase !== 'night' || !this.room.cur) return;
       const idx = this.room.idx(this.id);
@@ -340,20 +361,27 @@ export class BotPlayer {
       try { this.room.handleAction(this.id, action || { skip: true }); }
       catch (e) { try { this.room.handleAction(this.id, { skip: true }); } catch (_) {} }
     });
-    if (this.roleTeam === 'wolf' && Math.random() < 0.35) {
-      this._schedule(randInt(1500, 5000), () => this._sendChat('wolf'));
+    /* Wolf chat: chatty * 0.5 tuỳ persona (bot ít nói không xì thùng). */
+    if (this.roleTeam === 'wolf' && Math.random() < this.persona.chatty * 0.5) {
+      this._schedule(this._pdRange(1200, 6000), () => this._sendChat('wolf'));
     }
   }
 
   /* ── NGÀY (thảo luận) ── */
   _planDayChat() {
     if (!this.alive) {
-      if (Math.random() < 0.4) this._schedule(randInt(3000, 10000), () => this._sendChat('dead'));
+      // Chết: chat âm phủ theo chatty * 0.35 (ít hơn — không phải ai chết cũng nhiều lời)
+      if (Math.random() < this.persona.chatty * 0.35)
+        this._schedule(this._pdRange(3000, 14000), () => this._sendChat('dead'));
       return;
     }
-    const nMsgs = Math.random() < 0.6 ? randInt(1, 3) : 0;
+    /* nMsgs 0-3 gate theo chatty: lurker 0.1 → hầu như 0 tin, nói nhiều 0.9 → 1-3 tin.
+       Delay k-th tin lệch xa hơn (base + jitter) để bot không chat cùng lúc. */
+    const nMsgs = Math.random() < this.persona.chatty ? randInt(1, 3) : 0;
     for (let k = 0; k < nMsgs; k++) {
-      this._schedule(randInt(3000 + k * 6000, 8000 + k * 8000), () => {
+      const base = 2500 + k * 7000;
+      const spread = 12000 + k * 10000;
+      this._schedule(this._pdRange(base, base + spread), () => {
         if (this.room.phase !== 'day' || !this.alive) return;
         this._sendChat('main');
       });
@@ -365,14 +393,15 @@ export class BotPlayer {
     if (!this.alive) return;
     if (!this.lastMorning) return;
     const deaths = this.lastMorning.deaths || [];
-    // Chỉ 55% cơ hội chat để không spam
-    if (Math.random() > 0.55) return;
-    this._schedule(randInt(1500, 5500), () => {
+    /* Gate theo chatty * 0.55 — lurker gần như không "RIP tên", tránh 4 bot
+       cùng RIP một lúc. Delay spread 800-14000ms để tin đến rải rác. */
+    if (Math.random() > this.persona.chatty * 0.55) return;
+    this._schedule(this._pdRange(800, 14000), () => {
       if (this.room.phase !== 'day' || !this.alive) return;
       let text;
-      if (deaths.length === 0) text = pick(['Đêm qua yên bình quá 🌙', 'Không ai chết à? Bảo Vệ tốt đấy 🛡️', 'Nghi Sói ngủ quên nhỉ 😴']);
-      else if (deaths.length === 1) text = pick([`RIP ${deaths[0]} 😭`, `Tiếc ${deaths[0]} thật`, `${deaths[0]} chết rồi, ai giết vậy?`, `Nghi Sói cắn ${deaths[0]} có kế hoạch`]);
-      else text = pick([`RIP ${deaths.join(', ')} 💀`, `${deaths.length} người chết? Ván này căng`, `Sói ăn mạnh quá 🐺`]);
+      if (deaths.length === 0) text = pick(['Đêm qua yên bình quá 🌙', 'Không ai chết à? Bảo Vệ tốt đấy 🛡️', 'Nghi Sói ngủ quên nhỉ 😴', 'Sao vậy trời...', 'Ổn quá ổn']);
+      else if (deaths.length === 1) text = pick([`RIP ${deaths[0]} 😭`, `Tiếc ${deaths[0]} thật`, `${deaths[0]} chết rồi`, `${deaths[0]} 😔`, `😭 ${deaths[0]}`, `Nghi Sói cắn ${deaths[0]} có kế hoạch`, `${deaths[0]} chắc là Tiên Tri`]);
+      else text = pick([`RIP ${deaths.join(', ')} 💀`, `${deaths.length} người chết? Ván này căng`, `Sói ăn mạnh quá 🐺`, `2 mạng luôn à 😱`]);
       try { this.room.handleChat(this.id, 'main', text); } catch (e) {}
     });
   }
@@ -381,15 +410,15 @@ export class BotPlayer {
   _planDayReactionChat() {
     if (!this.alive) return;
     if (!this.lastDay) return;
-    if (Math.random() > 0.4) return;
-    this._schedule(randInt(2000, 6000), () => {
+    if (Math.random() > this.persona.chatty * 0.4) return;
+    this._schedule(this._pdRange(2000, 9000), () => {
       if (this.room.phase !== 'day' || !this.alive) return;
       const line = pick(this.lastDay.lines || []);
       const looksLikeHang = /(bị treo|treo cổ|hang|đã bị)/i.test(String(line || ''));
       const noHang = /không.*treo|không đủ/i.test(String(line || ''));
       let text;
-      if (noHang) text = pick(['Không treo được ai à 😑', 'Vote lỏng lẻo quá', 'Phải quyết đoán hơn chứ']);
-      else if (looksLikeHang) text = pick(['Treo trúng chưa nhỉ? 👀', 'Ván này sắp rõ rồi', 'Hy vọng đúng Sói', 'Tiếp tục soi thôi 🔍']);
+      if (noHang) text = pick(['Không treo được ai à 😑', 'Vote lỏng lẻo quá', 'Phải quyết đoán hơn chứ', '...', 'Chán ghê']);
+      else if (looksLikeHang) text = pick(['Treo trúng chưa nhỉ? 👀', 'Ván này sắp rõ rồi', 'Hy vọng đúng Sói', 'Tiếp tục soi thôi 🔍', '🤞', 'Hồi hộp']);
       else return;
       try { this.room.handleChat(this.id, 'main', text); } catch (e) {}
     });
@@ -398,8 +427,17 @@ export class BotPlayer {
   /* ── VOTE ── */
   _planVote(voteMsg) {
     if (!this.alive) return;
-    if (Math.random() < 0.5) this._schedule(randInt(1500, 4500), () => this._sendChat('main', { isVoteOpen: true, options: voteMsg.options }));
-    this._schedule(randInt(4000, 15000), () => {
+    /* Chat trước vote theo chatty * 0.5 (bot ít nói không nhắc target). */
+    if (Math.random() < this.persona.chatty * 0.5)
+      this._schedule(this._pdRange(1000, 5500), () => this._sendChat('main', { isVoteOpen: true, options: voteMsg.options }));
+    /* Spread vote 2-22s * patience — có bot vote sớm (2s), có bot vote gần deadline.
+       Cap ở voteMsg.deadline - 500ms để chắc chắn kịp gửi. */
+    let delay = this._pdRange(2000, 22000);
+    if (voteMsg && voteMsg.deadline) {
+      const remain = voteMsg.deadline - Date.now();
+      if (remain > 0) delay = Math.min(delay, Math.max(500, remain - 500));
+    }
+    this._schedule(delay, () => {
       if (this.room.phase !== 'day' || !this.room.voteOpen || !this.alive) return;
       const target = botVote(this.room, this.room.idx(this.id), voteMsg, this);
       if (target) { try { this.room.handleVote(this.id, target); } catch (e) {} }
@@ -443,9 +481,11 @@ export class BotPlayer {
     if (this._destroyed) return;
     if (msg.channel !== 'main' || this.phase !== 'day' || !this.alive) return;
     if (msg.from === this.name) return;
+    /* Bot lurker gần như không reply — chỉ bot chatty cao mới phản ứng. */
+    if (Math.random() > this.persona.chatty * 0.7) return;
     const r = tryReply({ myName: this.name, incomingText: msg.text, incomingFrom: msg.from });
     if (r) {
-      this._schedule(randInt(2000, 6000), () => {
+      this._schedule(this._pdRange(1500, 8000), () => {
         if (this.room.phase !== 'day' || !this.alive) return;
         try { this.room.handleChat(this.id, 'main', r); } catch (e) {}
       });

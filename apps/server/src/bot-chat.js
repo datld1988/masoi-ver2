@@ -64,6 +64,19 @@ const NEUTRAL = [
   'Ok để tôi nghĩ',
   'Có Bảo Vệ chưa nhỉ?',
   'Phù Thủy đâu rồi?',
+  /* Câu ngắn/kiểu "lurker vừa vào" — tránh cảm giác template dài dòng */
+  '...',
+  '..',
+  'ừm',
+  'ờ',
+  'ok',
+  'ừ',
+  '🙄',
+  '😐',
+  'ngồi hóng',
+  'chờ tí',
+  'khum bik',
+  'hmm ai đây',
 ];
 
 /* ── Khi vote đang mở ── */
@@ -111,6 +124,9 @@ const REPLY_MENTION = [
   'Nói đi',
   '?',
   'Tôi là Dân đấy',
+  'Hử?',
+  'Gì cơ?',
+  'ơi',
 ];
 
 /* ── Reply khi có người hỏi vai ── */
