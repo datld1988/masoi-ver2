@@ -297,7 +297,31 @@ Commit: `0005dfe` server · `9a7a790` UI · `751fde0` docs. Test: 83/83 auto-MC 
 
 ### Polish còn nợ (không chặn Phase 3, làm sau)
 - **Phase C**: animation chuyển ngày/đêm mượt, gesture vuốt tab, push notification background.
-- **Phase D**: PWA `manifest.json` + adaptive icon, ARIA labels, contrast audit, WS reconnect on resume, Capacitor wire-up `masoi-android/`.
+- **Phase D còn**: ARIA labels đầy đủ (D2), contrast audit (D3), Capacitor wire-up `masoi-android/` (D5). D1 (PWA) + D4 (WS reconnect on resume) đã xong (xem section dưới).
+
+## PWA installable + Auto reconnect WS (D1+D4, 2026-07-19)
+
+Commit: `d3a0e1e`.
+
+### D1 — PWA
+- **Files**: `manifest.webmanifest` (name/short_name/start_url=/player-ws.html/display=standalone/orientation=portrait/theme_color=#0f0a1e/lang=vi + shortcut "Ván nhanh" `?qm=1`) · `icon.svg` (any, viewBox 512×512, wolf head + moon crescent gradient tím→vàng) · `icon-maskable.svg` (safe-zone 70%, `purpose:maskable` cho Android adaptive) · `sw.js` (tối giản: skipWaiting+claim, fetch pass-through — chỉ để pass installability criteria).
+- **Meta tags** (`<head>`): `link rel="manifest"`, `apple-touch-icon`, `apple-mobile-web-app-{capable,status-bar-style=black-translucent,title=Ma Sói}`, `mobile-web-app-capable`, `description`.
+- **Server STATIC + CT_MAP** (`index.js`): serve `.webmanifest` = `application/manifest+json`, `.svg` = `image/svg+xml`, `.js` = `application/javascript`. Cache: `no-store` cho `sw.js`, `public, max-age=86400` cho icon/manifest.
+- **SW registration** (client): `if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js')` trong window load — silent catch.
+- **Store note**: icon SVG — Chrome/Edge/Firefox chấp nhận, nhưng khi build APK/lên Play Store cần convert 192×192 + 512×512 PNG (tool ngoài như realfavicongenerator.net).
+
+### D4 — Auto reconnect WS
+- Listen `visibilitychange` (visible) + `online` + `focus` → `_scheduleAutoReconnect()` debounce 300ms → `tryAutoReconnect()` rate limit 2s.
+- **Guard**: chỉ chạy khi `localStorage.masoi_ws_token` + `masoi_ws_room` cùng có (đã từng join phòng) + `navigator.onLine=true` + `ws` không alive (`!== OPEN/CONNECTING`). Không phiền user đang ở màn auth/join hoặc đã chủ động leave.
+- Dùng lại `connect('resume')` — server đã có flow gửi welcome → dựng lại state (`_lastGameOver` nếu ván ended; prompt hiện tại nếu đang đêm/ngày).
+- Toast "🔄 Đang kết nối lại…" khi trigger.
+
+### Gotchas
+- **Icon SVG cho iOS `apple-touch-icon`**: Safari cũ (<16) không hỗ trợ SVG cho apple-touch-icon → khi lên iOS/App Store buộc phải PNG.
+- **Không dùng SW cache** vì WS + state động — nếu sau cần offline mode, chỉ precache `role-art.js` + `icon.svg` + `manifest.webmanifest`, KHÔNG cache `player-ws.html` (client update thường xuyên) hoặc `/` (server API dynamic).
+- **Auto reconnect KHÔNG chạy trong onclose** — tránh loop khi server chết hoàn toàn. User vẫn có thể tap tab / mất mạng lại có mạng để trigger.
+- **`_reconnectAt` rate limit 2s** — nếu server phản hồi lỗi ngay (Phiên không còn tồn tại) và xoá token, lần retry tiếp theo sẽ tự return early do `!t||!r`.
+- **connect('resume')** overwrite `ws` reference — ws cũ (nếu còn) sẽ bị GC. Onclose cũ chỉ set text "Mất kết nối" — không loop.
 
 ---
 
