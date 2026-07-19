@@ -1,11 +1,16 @@
 'use strict';
 /* BotPlayer — người chơi ảo cho quick match khi thiếu người thật.
    Chạy server-side, nhận message qua `send()` như client thật, phản ứng có delay
-   để giống người (2-10s action, 4-15s vote, 8-25s chat).
-   Bot được cấp quyền "biết" role của chính mình + có ref tới Room để chọn action
-   hợp lệ (KHÔNG biết vai người khác — trừ đồng đội Sói qua `mates`).
+   để giống người (2-8s action, 4-15s vote, 3-25s chat).
 
-   Import phải LAZY qua constructor để tránh circular với room.js. */
+   Bot có "beliefs" (ai là Sói / Dân) build từ:
+   - `mates` (bot Sói biết đồng đội qua yourRole message)
+   - `privateResult` (bot Tiên Tri/Medium/Sói Tiên Tri parse text → beliefs)
+   Chưa xử: sorcerer (chỉ mystic), detective (2 cùng phe), fox (nhóm có sói).
+
+   Bot dùng beliefs để: không cắn mate, không soi lại người đã soi, poison sói đã lộ,
+   vote sói đã lộ, bandwagon top vote. Chat phản ứng theo diễn biến ngày (RIP tên,
+   hoan hô treo sói, tiếc treo dân). */
 
 import E from '@masoi/engine';
 import { genChat, tryReply } from './bot-chat.js';
@@ -14,72 +19,107 @@ const rand = (lo, hi) => lo + Math.random() * (hi - lo);
 const randInt = (lo, hi) => Math.floor(rand(lo, hi + 1));
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
-/** Sinh action HỢP LỆ cho bot dựa trên roleId + state hiện tại của phòng.
- *  Bot Sói có "thông tin nội bộ" biết đồng đội (thực tế client Sói cũng biết qua mates).
- *  Bot Dân KHÔNG biết ai là Sói → chọn target ngẫu nhiên. */
-function botNightAction(room, botIdx, stepType, promptMsg) {
+/** Sinh action HỢP LỆ + có ý thức dựa trên roleId + state + beliefs của bot. */
+function botNightAction(room, botIdx, stepType, promptMsg, bot) {
   const S = room.state;
   const al = room.aliveList();
+  const myPid = room.pid(botIdx);
   const others = al.filter(x => x.i !== botIdx);
   const pid = (i) => room.pid(i);
   const isWolf = (rid) => E.WOLF_IDS.includes(rid);
   const isBiter = (rid) => E.BITING_WOLF_IDS.includes(rid);
+  const mateIds = new Set((bot.mates || []).map(m => m.id).filter(Boolean));
+  const knownWolves = () => [...bot.beliefs.entries()]
+    .filter(([, b]) => b.wolf === true && b.confidence >= 0.9)
+    .map(([p]) => p)
+    .filter(p => { const i = room.idx(p); return i >= 0 && S.players[i] && S.players[i].alive && i !== botIdx; });
 
   switch (stepType) {
     case 'wolf': {
-      // Sói bot: cắn 1 người không phải Sói bất kỳ
-      const targets = al.filter(x => !isBiter(x.p.roleId) && x.p.roleId !== 'deserter');
+      // Bot Sói: KHÔNG cắn mate (Sói khác) + KHÔNG cắn deserter. Ưu tiên người
+      // bot chưa có belief (giả định là vai quan trọng như Tiên Tri/Bảo Vệ).
+      const targets = al.filter(x => {
+        if (isBiter(x.p.roleId) || x.p.roleId === 'deserter') return false;
+        const p = pid(x.i);
+        if (p === myPid || mateIds.has(p)) return false;
+        // Loại người bot đã biết là Sói (dù sao cũng không cắn)
+        const b = bot.beliefs.get(p);
+        if (b && b.wolf === true) return false;
+        return true;
+      });
       if (!targets.length) return { skip: true };
-      const t = pick(targets);
+      // Ưu tiên người CHƯA có belief (nhiều khả năng là vai đặc biệt bot chưa lộ)
+      const unknown = targets.filter(x => !bot.beliefs.has(pid(x.i)));
+      const t = pick(unknown.length ? unknown : targets);
       return { targets: [pid(t.i)] };
     }
     case 'whitewolf': {
-      // Sói Trắng có thể cắn 1 Sói khác — auto skip 50% để không dồn ép
       if (Math.random() < 0.5) return { skip: true };
       const wolves = al.filter(x => isWolf(x.p.roleId) && x.p.roleId !== 'whitewolf');
       if (!wolves.length) return { skip: true };
-      return { targets: [pick(wolves).i ? pid(pick(wolves).i) : pid(wolves[0].i)] };
+      return { targets: [pid(pick(wolves).i)] };
     }
-    case 'seer': case 'sorcerer': case 'wolfseer':
+    case 'seer': {
+      // Bot Tiên Tri: không soi lại người đã soi + không soi mình
+      const opts = promptMsg?.options || [];
+      const fresh = opts.filter(o => o && o.id !== myPid && !bot.seerSeen.has(o.id));
+      const chosen = fresh.length ? pick(fresh) : (opts.filter(o => o.id !== myPid)[0] || null);
+      if (!chosen) return { skip: true };
+      bot.seerSeen.add(chosen.id);
+      return { targets: [chosen.id] };
+    }
+    case 'sorcerer': case 'wolfseer':
     case 'medium': case 'gravedigger': case 'graverobber':
     case 'tracker': case 'switcher': case 'detective':
     case 'fox': case 'copycat': {
-      // Roles cần chọn target(s) từ options
-      const opts = promptMsg && promptMsg.options ? promptMsg.options : null;
-      if (!opts || !opts.length) return { skip: true };
+      const opts = promptMsg?.options || [];
+      if (!opts.length) return { skip: true };
       const max = promptMsg.max || 1;
-      const shuffled = [...opts].sort(() => Math.random() - 0.5);
-      const chosen = shuffled.slice(0, Math.min(max, shuffled.length))
-        .filter(o => o && o.id !== room.pid(botIdx));  // không tự chọn mình
+      const shuffled = [...opts].filter(o => o && o.id !== myPid).sort(() => Math.random() - 0.5);
+      const chosen = shuffled.slice(0, Math.min(max, shuffled.length));
       if (!chosen.length) return { skip: true };
       return { targets: chosen.map(o => o.id) };
     }
     case 'bodyguard': {
+      // Không bảo vệ cùng người 2 đêm liên tiếp (server đã chặn qua bodyguardLastIdx).
+      // Ưu tiên bảo vệ người bot đã biết là Dân (belief villager, confidence cao).
       const cands = al.filter(x => x.i !== S.flags.bodyguardLastIdx);
       if (!cands.length) return { skip: true };
-      return { targets: [pid(pick(cands).i)] };
+      const villagers = cands.filter(x => {
+        const b = bot.beliefs.get(pid(x.i));
+        return b && b.wolf === false && b.confidence >= 0.9;
+      });
+      const t = pick(villagers.length ? villagers : cands);
+      return { targets: [pid(t.i)] };
     }
     case 'doctor': {
-      const cands = al;
-      if (!cands.length) return { skip: true };
-      return { targets: [pid(pick(cands).i)] };
+      // Doctor cứu random — không có info để chọn tốt hơn
+      if (!al.length) return { skip: true };
+      return { targets: [pid(pick(al).i)] };
     }
     case 'cupid': {
       if (al.length < 2) return { skip: true };
       const shuffled = [...al].sort(() => Math.random() - 0.5);
       return { targets: [pid(shuffled[0].i), pid(shuffled[1].i)] };
     }
-    case 'hunter': {
-      const t = others.length ? pick(others) : null;
-      return t ? { targets: [pid(t.i)] } : { skip: true };
-    }
-    case 'serialkiller': case 'nighthunter': case 'assassin': {
+    case 'hunter': case 'serialkiller': case 'nighthunter': case 'assassin': {
+      // Bot phe Dân: nếu biết Sói → giết Sói
+      const isVillage = bot.roleTeam === 'village' || bot.roleTeam === 'third' || bot.roleTeam === 'neutral';
+      if (isVillage) {
+        const wolves = knownWolves();
+        if (wolves.length) return { targets: [wolves[0]] };
+      }
       const t = others.length ? pick(others) : null;
       return t ? { targets: [pid(t.i)] } : { skip: true };
     }
     case 'witch': {
-      // Dùng độc random khi có wolf sống, luôn cứu = null (bot mù, không biết ai)
-      if (!S.flags.witchPoisonUsed && Math.random() < 0.3) {
+      // Bot Phù Thủy: nếu biết Sói → poison Sói đó. Heal không có info bị cắn → null.
+      if (!S.flags.witchPoisonUsed) {
+        const wolves = knownWolves();
+        if (wolves.length && Math.random() < 0.75) return { heal: null, poison: wolves[0] };
+      }
+      // Fallback: đôi khi random poison (chỉ khi chưa biết sói nào)
+      if (!S.flags.witchPoisonUsed && Math.random() < 0.15) {
         const w = al.find(x => isBiter(x.p.roleId) && x.i !== botIdx);
         if (w) return { heal: null, poison: pid(w.i) };
       }
@@ -91,42 +131,80 @@ function botNightAction(room, botIdx, stepType, promptMsg) {
     case 'survivor': case 'queencard': case 'hellhound': case 'direwolf':
     case 'cursedwolf': case 'balancer': case 'challenger': case 'hoodlum':
     case 'bountyhunter': case 'wildchild': case 'doppelganger': case 'lycan': {
-      const opts = promptMsg && promptMsg.options ? promptMsg.options : null;
-      if (!opts || !opts.length) return { skip: true };
+      const opts = promptMsg?.options || [];
+      if (!opts.length) return { skip: true };
       const max = promptMsg.max || 1;
-      const shuffled = [...opts].sort(() => Math.random() - 0.5);
-      const chosen = shuffled.slice(0, Math.min(max, shuffled.length))
-        .filter(o => o && o.id !== room.pid(botIdx));
-      if (!chosen.length) return { skip: true };
+      // Bot Sói-team các vai đêm: né mate
+      const filtered = opts.filter(o => o && o.id !== myPid && !mateIds.has(o.id));
+      const pool = filtered.length ? filtered : opts.filter(o => o && o.id !== myPid);
+      if (!pool.length) return { skip: true };
+      const shuffled = [...pool].sort(() => Math.random() - 0.5);
+      const chosen = shuffled.slice(0, Math.min(max, shuffled.length));
       return { targets: chosen.map(o => o.id) };
     }
     default:
-      // Vai không rõ hoặc auto-handle bởi server (hinter, littlegirl, ...)
       return { skip: true };
   }
 }
 
-/** Vote ngày: Sói bot ưu tiên vote Dân; Dân bot vote random. Tránh vote bản thân. */
-function botVote(room, botIdx, voteMsg) {
-  const opts = voteMsg && voteMsg.options ? voteMsg.options : [];
+/** Vote ngày: dùng beliefs — bot Dân vote sói đã lộ; bot Sói né mate; bandwagon top. */
+function botVote(room, botIdx, voteMsg, bot) {
+  const opts = voteMsg?.options || [];
   if (!opts.length) return null;
   const S = room.state;
-  const myRoleId = S && S.players[botIdx] ? S.players[botIdx].roleId : null;
-  const iAmWolf = myRoleId && E.BITING_WOLF_IDS.includes(myRoleId);
-  const cands = opts.filter(o => o.id !== room.pid(botIdx));
+  const myPid = room.pid(botIdx);
+  const cands = opts.filter(o => o.id !== myPid);
   if (!cands.length) return null;
+  const myRoleId = S.players[botIdx]?.roleId;
+  const iAmWolf = myRoleId && E.WOLF_IDS.includes(myRoleId);
+  const mateIds = new Set((bot.mates || []).map(m => m.id).filter(Boolean));
 
   if (iAmWolf) {
-    // Sói bot: vote 1 Dân bất kỳ (biết đồng đội qua state)
-    const villagers = cands.filter(o => {
+    // Bot Sói: không vote mate; ưu tiên vote Dân (theo state — bot Sói biết)
+    const filtered = cands.filter(o => !mateIds.has(o.id));
+    if (!filtered.length) return null;
+    const villagers = filtered.filter(o => {
       const idx = room.idx(o.id);
       if (idx < 0 || !S.players[idx]) return true;
       return !E.WOLF_IDS.includes(S.players[idx].roleId);
     });
-    return (villagers.length ? pick(villagers) : pick(cands)).id;
+    return (villagers.length ? pick(villagers) : pick(filtered)).id;
   }
-  // Dân bot: bandwagon nếu có phiếu áp đảo, else random
+
+  // Bot Dân: nếu biết ai là Sói (belief) → vote Sói đó
+  const knownWolf = cands.find(o => {
+    const b = bot.beliefs.get(o.id);
+    return b && b.wolf === true && b.confidence >= 0.9;
+  });
+  if (knownWolf) return knownWolf.id;
+
+  // Bandwagon: theo tally trước đó nếu có
+  if (bot.lastVoteTally) {
+    const sorted = Object.entries(bot.lastVoteTally).sort((a, b) => b[1] - a[1]);
+    for (const [idxStr] of sorted) {
+      const cand = cands.find(o => o.id === room.pid(+idxStr));
+      if (cand) return cand.id;
+    }
+  }
   return pick(cands).id;
+}
+
+/** Parse text privateResult → cập nhật beliefs. Chỉ xử các signal mạnh (confidence 1.0). */
+function parsePrivateResult(bot, text) {
+  const t = String(text || '');
+  const setB = (name, wolf, reason) => {
+    if (!name) return;
+    const pid = bot._nameToPid(name);
+    if (pid) bot._updateBelief(pid, wolf, 1.0, reason);
+  };
+  let m;
+  if ((m = t.match(/🔮 Soi (.+?): 🔴 LÀ MA SÓI/))) setB(m[1], true, 'seer');
+  else if ((m = t.match(/🔮 Soi (.+?): 🔵 KHÔNG phải Sói/))) setB(m[1], false, 'seer');
+  else if ((m = t.match(/🕯️ (.+?): 🔴 LÀ SÓI/))) setB(m[1], true, 'medium');
+  else if ((m = t.match(/🕯️ (.+?): 🔵 Không phải Sói/))) setB(m[1], false, 'medium');
+  else if ((m = t.match(/🔮 Sói Tiên Tri: (.+?) là .+ \(🔴 SÓI\)/))) setB(m[1], true, 'wolfseer');
+  else if ((m = t.match(/🔮 Sói Tiên Tri: (.+?) là .+ \(🔵 Dân\)/))) setB(m[1], false, 'wolfseer');
+  else if ((m = t.match(/⚰️ (.+?) là .+? (Ma Sói|Sói)/i))) setB(m[1], true, 'gravedigger');
 }
 
 export class BotPlayer {
@@ -134,7 +212,7 @@ export class BotPlayer {
     this.id = id;
     this.name = name;
     this.room = room;
-    this.sched = sched;    // dùng scheduler của room để test có thể tick
+    this.sched = sched;
     this.roleId = null;
     this.roleTeam = null;
     this.mates = [];
@@ -143,6 +221,12 @@ export class BotPlayer {
     this.chatTimer = null;
     this._destroyed = false;
     this._pendingTimers = new Set();
+    /* ── Memory & beliefs ── */
+    this.beliefs = new Map();       // pid → { wolf: true|false, confidence: 0..1, reason }
+    this.seerSeen = new Set();      // pid bot đã soi (nếu là Tiên Tri)
+    this.lastMorning = null;        // { nightNo, deaths: [names] }
+    this.lastDay = null;            // { dayNo, hangedName, hangedRole? }
+    this.lastVoteTally = null;      // { idx: count } — bandwagon
   }
 
   destroy() {
@@ -162,6 +246,29 @@ export class BotPlayer {
     return id;
   }
 
+  _nameToPid(name) {
+    if (!this.room.state) return null;
+    for (let i = 0; i < this.room.state.players.length; i++) {
+      if (this.room.state.players[i].name === name) return this.room.pid(i);
+    }
+    return null;
+  }
+  _updateBelief(pid, wolf, confidence, reason) {
+    if (!pid) return;
+    const cur = this.beliefs.get(pid);
+    if (cur && cur.confidence >= confidence && cur.wolf === wolf) return;
+    this.beliefs.set(pid, { wolf, confidence, reason });
+  }
+  _seedFromMates() {
+    if (!this.mates || !this.mates.length) return;
+    // Chỉ set mate = wolf khi mình cũng phe wolf (Cupid mates hoặc rev love ≠ wolf)
+    if (this.roleTeam !== 'wolf') return;
+    for (const m of this.mates) {
+      const p = m.id || this._nameToPid(m.name);
+      if (p) this._updateBelief(p, true, 1.0, 'own-mate');
+    }
+  }
+
   /** Nhận message từ Room (dạng cùng shape gửi cho client thật). */
   send(msg) {
     if (this._destroyed || !msg) return;
@@ -170,10 +277,10 @@ export class BotPlayer {
         this.roleId = msg.role && msg.role.id;
         this.roleTeam = msg.role && msg.role.team;
         this.mates = msg.mates || [];
+        this._seedFromMates();
         break;
       case 'state':
         this.phase = msg.phase;
-        // Tự cập nhật trạng thái sống của bot
         if (msg.players) {
           const me = msg.players.find(p => p.id === this.id);
           if (me) this.alive = me.alive !== false;
@@ -189,17 +296,26 @@ export class BotPlayer {
       case 'voteOpen':
         this._planVote(msg);
         break;
-      case 'sleep':
-      case 'privateResult':
-      case 'morning':
-      case 'day':
       case 'voteTally':
+        this.lastVoteTally = msg.tally || null;
+        break;
+      case 'morning':
+        this.lastMorning = { nightNo: msg.nightNo, deaths: (msg.deaths || []).map(d => d.name || d) };
+        this._planMorningChat();
+        break;
+      case 'day':
+        this.lastDay = { dayNo: msg.dayNo, lines: msg.lines || [] };
+        this._planDayReactionChat();
+        break;
+      case 'privateResult':
+        parsePrivateResult(this, msg.text);
+        break;
+      case 'sleep':
       case 'roles':
       case 'lobby':
       case 'welcome':
       case 'toast':
       case 'error':
-        // no-op
         break;
       case 'chatMsg':
         this._maybeReply(msg);
@@ -212,7 +328,6 @@ export class BotPlayer {
 
   /* ── ĐÊM ── */
   _planNightAction(prompt) {
-    // Delay 2-8s để giả lập "thinking"
     const delay = randInt(2000, 8000);
     this._schedule(delay, () => {
       if (this.room.phase !== 'night' || !this.room.cur) return;
@@ -220,12 +335,11 @@ export class BotPlayer {
       if (idx < 0 || !this.room.cur.pending || !this.room.cur.pending.has(idx)) return;
       const type = this.room.cur.stepByActor[idx];
       let action;
-      try { action = botNightAction(this.room, idx, type, prompt); }
+      try { action = botNightAction(this.room, idx, type, prompt, this); }
       catch (e) { action = { skip: true }; }
       try { this.room.handleAction(this.id, action || { skip: true }); }
       catch (e) { try { this.room.handleAction(this.id, { skip: true }); } catch (_) {} }
     });
-    // Đêm — nếu là Sói, đôi khi chat kênh wolf
     if (this.roleTeam === 'wolf' && Math.random() < 0.35) {
       this._schedule(randInt(1500, 5000), () => this._sendChat('wolf'));
     }
@@ -234,11 +348,9 @@ export class BotPlayer {
   /* ── NGÀY (thảo luận) ── */
   _planDayChat() {
     if (!this.alive) {
-      // Bot chết: đôi khi chat kênh dead
       if (Math.random() < 0.4) this._schedule(randInt(3000, 10000), () => this._sendChat('dead'));
       return;
     }
-    // Sống: 60% cơ hội chat 1-3 câu trong khoảng 5-25s đầu ngày
     const nMsgs = Math.random() < 0.6 ? randInt(1, 3) : 0;
     for (let k = 0; k < nMsgs; k++) {
       this._schedule(randInt(3000 + k * 6000, 8000 + k * 8000), () => {
@@ -248,15 +360,48 @@ export class BotPlayer {
     }
   }
 
+  /* Chat phản ứng khi vừa sáng — RIP tên chết / đêm yên bình */
+  _planMorningChat() {
+    if (!this.alive) return;
+    if (!this.lastMorning) return;
+    const deaths = this.lastMorning.deaths || [];
+    // Chỉ 55% cơ hội chat để không spam
+    if (Math.random() > 0.55) return;
+    this._schedule(randInt(1500, 5500), () => {
+      if (this.room.phase !== 'day' || !this.alive) return;
+      let text;
+      if (deaths.length === 0) text = pick(['Đêm qua yên bình quá 🌙', 'Không ai chết à? Bảo Vệ tốt đấy 🛡️', 'Nghi Sói ngủ quên nhỉ 😴']);
+      else if (deaths.length === 1) text = pick([`RIP ${deaths[0]} 😭`, `Tiếc ${deaths[0]} thật`, `${deaths[0]} chết rồi, ai giết vậy?`, `Nghi Sói cắn ${deaths[0]} có kế hoạch`]);
+      else text = pick([`RIP ${deaths.join(', ')} 💀`, `${deaths.length} người chết? Ván này căng`, `Sói ăn mạnh quá 🐺`]);
+      try { this.room.handleChat(this.id, 'main', text); } catch (e) {}
+    });
+  }
+
+  /* Chat sau khi có kết quả treo cổ ngày */
+  _planDayReactionChat() {
+    if (!this.alive) return;
+    if (!this.lastDay) return;
+    if (Math.random() > 0.4) return;
+    this._schedule(randInt(2000, 6000), () => {
+      if (this.room.phase !== 'day' || !this.alive) return;
+      const line = pick(this.lastDay.lines || []);
+      const looksLikeHang = /(bị treo|treo cổ|hang|đã bị)/i.test(String(line || ''));
+      const noHang = /không.*treo|không đủ/i.test(String(line || ''));
+      let text;
+      if (noHang) text = pick(['Không treo được ai à 😑', 'Vote lỏng lẻo quá', 'Phải quyết đoán hơn chứ']);
+      else if (looksLikeHang) text = pick(['Treo trúng chưa nhỉ? 👀', 'Ván này sắp rõ rồi', 'Hy vọng đúng Sói', 'Tiếp tục soi thôi 🔍']);
+      else return;
+      try { this.room.handleChat(this.id, 'main', text); } catch (e) {}
+    });
+  }
+
   /* ── VOTE ── */
   _planVote(voteMsg) {
     if (!this.alive) return;
-    // Đôi khi chat trước khi vote
     if (Math.random() < 0.5) this._schedule(randInt(1500, 4500), () => this._sendChat('main', { isVoteOpen: true, options: voteMsg.options }));
-    // Delay 4-15s rồi vote
     this._schedule(randInt(4000, 15000), () => {
       if (this.room.phase !== 'day' || !this.room.voteOpen || !this.alive) return;
-      const target = botVote(this.room, this.room.idx(this.id), voteMsg);
+      const target = botVote(this.room, this.room.idx(this.id), voteMsg, this);
       if (target) { try { this.room.handleVote(this.id, target); } catch (e) {} }
     });
   }
@@ -266,11 +411,22 @@ export class BotPlayer {
     if (this._destroyed) return;
     if (this.room.phase === 'ended') return;
     const opts = (extra.options || []).map(o => o.name).filter(n => n && n !== this.name);
-    // Danh sách tên người sống khác để làm target đưa vào template
     const others = this.room.aliveList
       ? this.room.aliveList().filter(x => x.i !== this.room.idx(this.id)).map(x => x.p.name)
       : [];
-    const targets = opts.length ? opts : others;
+    /* Nếu bot biết ai là Sói + đang vote → ưu tiên nhắc tên đó */
+    let targets = opts.length ? opts : others;
+    if (extra.isVoteOpen && this.roleTeam !== 'wolf') {
+      const wolvesKnown = [...this.beliefs.entries()]
+        .filter(([, b]) => b.wolf === true && b.confidence >= 0.9)
+        .map(([p]) => {
+          const idx = this.room.idx(p);
+          return idx >= 0 && this.room.state && this.room.state.players[idx]
+            ? this.room.state.players[idx].name : null;
+        })
+        .filter(Boolean);
+      if (wolvesKnown.length) targets = wolvesKnown;
+    }
     const text = genChat({
       phase: this.room.phase,
       channel,
@@ -287,7 +443,6 @@ export class BotPlayer {
     if (this._destroyed) return;
     if (msg.channel !== 'main' || this.phase !== 'day' || !this.alive) return;
     if (msg.from === this.name) return;
-    // 25% cơ hội phản ứng, kể cả khi không có keyword
     const r = tryReply({ myName: this.name, incomingText: msg.text, incomingFrom: msg.from });
     if (r) {
       this._schedule(randInt(2000, 6000), () => {
